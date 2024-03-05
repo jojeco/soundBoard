@@ -11,13 +11,12 @@ export const soundBoardStyles = StyleSheet.create({
     // gridstyles
     gridContainer: {   
         flex: 1,
-        flexDirection: "row",
-        flexWrap: "wrap",
+        
         justifyContent: "center",
         alignItems: "center",
         alignContent: "center",
-        width: 200,
-        height: 100,
+        width: 370,
+        borderWidth: 1,
     },
     
     gridLayout: {
