@@ -12,22 +12,13 @@ export default function App() {
   const [recording, setRecording] = useState(null);
   const [recordedSounds, setRecordedSounds] = useState([]);
 
-  const sounds = [
-    require('../Sounds/rizz-sounds.mp3'),
-    require('../Sounds/summer-time-anime-love_q5du5Qo.mp3'),
-    require('../Sounds/unspoken-rizz.mp3'),
-    require('../Sounds/vine-boom.mp3'),
-    require('../Sounds/ack.mp3'),
-    require('../Sounds/galaxy-meme.mp3'),
-    require('../Sounds/spongebob-fail.mp3'),
-    
-    
-
-  ];
-
   useEffect(() => {
     db.transaction(tx => {
       tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS recordings (id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT);',
+        [],
+        () => console.log('Table created successfully'),
+        (_, error) => console.log('Error creating table', error)
       );
       tx.executeSql('SELECT * FROM recordings;', [], (_, { rows }) => {
         setRecordedSounds(rows._array);
@@ -35,18 +26,16 @@ export default function App() {
     });
   }, []);
 
-  // Plays the sound
-  const playSound = async (soundResource) => {
+  const playSound = async (uri) => {
     if (sound) {
       await sound.stopAsync();
       await sound.unloadAsync();
     }
-    const { sound: newSound } = await Audio.Sound.createAsync(soundResource);
+    const { sound: newSound } = await Audio.Sound.createAsync({ uri });
     setSound(newSound);
     await newSound.playAsync();
   };
 
-  // Stops the sound
   const stopSound = async () => {
     if (sound) {
       await sound.stopAsync();
@@ -55,10 +44,9 @@ export default function App() {
     }
   };
 
-  //Starts recording of the sounds, says the maximum limit
   const startRecording = async () => {
-    if (recordedSounds.length >= 8) {
-      Alert.alert("Limit Reached Maximum 8", "Delete an existing recording first");
+    if (recordedSounds.length >= 9) {
+      Alert.alert("Limit Reached", "Maximum 9 recordings allowed. Delete an existing recording first.");
       return;
     }
     try {
@@ -67,16 +55,13 @@ export default function App() {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
-      await newRecording.startAsync();
+      const newRecording = await Audio.Recording.createAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
       setRecording(newRecording);
     } catch (err) {
       console.error('Failed to start recording', err);
     }
   };
 
-  // Stops recording sound
   const stopRecording = async () => {
     if (!recording) return;
     await recording.stopAndUnloadAsync();
@@ -91,7 +76,6 @@ export default function App() {
     }
   };
 
-  // Updates Sound recordings
   const updateRecordedSounds = () => {
     db.transaction(tx => {
       tx.executeSql('SELECT * FROM recordings;', [], (_, { rows }) => {
@@ -99,8 +83,7 @@ export default function App() {
       });
     });
   };
-  
-  // Deletes sound recordings
+
   const deleteRecording = (id) => {
     db.transaction(tx => {
       tx.executeSql('DELETE FROM recordings WHERE id = ?;', [id], () => {
@@ -109,42 +92,47 @@ export default function App() {
     });
   };
 
-  
   return (
     <View style={soundBoardStyles.background}>
       <View style={indexStyles.recordingButton}>
           <Link href={"/"}>
             <Text>Home</Text>
           </Link>
+          <Pressable onPress={startRecording}>
+            <Text>Start Recording</Text>
+          </Pressable>
+          <Pressable onPress={stopRecording}>
+            <Text>Stop Recording</Text>
+          </Pressable>
         </View>
-        
+
         <View style={soundBoardStyles.gridContainer}>
           <View style={soundBoardStyles.gridLayout}>
-          {sounds.map((soundResource, index) => (
+            {recordedSounds.map((recording, index) => (
+              <Pressable
+                key={recording.id}
+                onPress={() => playSound(recording.uri)}
+                onLongPress={() => deleteRecording(recording.id)} // Long press to delete
+                style={({ pressed }) => [
+                  soundBoardStyles.soundButton,
+                  pressed ? soundBoardStyles.soundButtonPressed : {},
+                ]}>
+                <Text>Play {index + 1}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {sound && (
             <Pressable
-              key={index}
-              onPress={() => playSound(soundResource)}
+              onPress={stopSound}
               style={({ pressed }) => [
                 soundBoardStyles.soundButton,
-                pressed ? soundBoardStyles.SBP : {}, // Dynamically changes style when pressed
+                pressed ? soundBoardStyles.soundButtonPressed : {},
               ]}>
-              <Text>Play {index + 1}</Text>
+              <Text style={soundBoardStyles.buttonText}>Stop Sound</Text>
             </Pressable>
-          ))}
+          )}
         </View>
-      
-        {sound && (
-          <Pressable
-            onPress={stopSound}
-            style={({ pressed }) => [
-              soundBoardStyles.soundButton,
-              pressed ? soundBoardStyles.SBP1 : {}, // Dynamically changes style when pressed
-            ]}>
-            <Text style={soundBoardStyles.buttonText}>Stop Sound</Text>
-          </Pressable>
-        )}
-        </View>
-      
-      </View>
+    </View>
   );
 }

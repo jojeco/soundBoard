@@ -16,7 +16,12 @@ export default function App() {
 
         <View style={indexStyles.recordingButton}>
           <Link href={"/soundBoard"}>
-            <Text>Recording</Text>
+            <Text>Pre Made SoundBoard</Text>
+          </Link>
+        </View>
+        <View style={indexStyles.recordingButton}>
+          <Link href={"/CreateSoundBoard"}>
+            <Text>Make Your Own</Text>
           </Link>
         </View>
         

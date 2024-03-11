@@ -1,5 +1,22 @@
 import { StyleSheet } from "react-native";
 
+const baseButtonStyle = {
+        width: 80,
+        height: 80,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 10,
+        padding: 10,
+        margin : 10,    
+  };
+  
+  const baseButtonTextStyle = {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  };
+
 export const soundBoardStyles = StyleSheet.create({
     // background styles
     background: {
@@ -9,25 +26,22 @@ export const soundBoardStyles = StyleSheet.create({
         alignItems: "center",       
     },
     // gridstyles
-    gridContainer: {   
+    gridContainer: {
         flex: 1,
-        
         justifyContent: "center",
         alignItems: "center",
         alignContent: "center",
-        width: 370,
+        width: 370, // You may adjust this width based on your needs
         borderWidth: 1,
+        flexWrap: 'wrap', // This is not directly applicable here, see gridLayout for wrapping
     },
     
     gridLayout: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "Space-Around",
-        borderColor: "black",
-        marginBottom: 10,
-        flex: 'wrap',
-    
-      
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        flexWrap: 'wrap', // Enable wrapping
+        width: '100%', // Ensure the container takes the full width of its parent
     },
     Home: {
         backgroundColor: "lightgreen",
@@ -47,13 +61,23 @@ export const soundBoardStyles = StyleSheet.create({
     }, 
     soundButton: {
         backgroundColor: "lightblue",
-        textAlign: "center",
-        justifyContent: "center",
-        alignContent: "center",
-        flex: 1,
-        height: '50%',
+        width: 80,
+        height: 80,
+        justifyContent: 'center',
+        alignItems: 'center',
         borderRadius: 10,
-        margin: 20,
+        padding: 10,
+        margin : 10,    
+    },
+    SBP: {
+        ...baseButtonStyle,
+        backgroundColor: "green",
+        
+    },
+    SBP1: {
+        ...baseButtonStyle,
+        backgroundColor: "blue",
+        
     },
     SBStyles: {
         textAlign: "center",
