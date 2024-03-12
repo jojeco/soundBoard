@@ -14,15 +14,14 @@ export default function App() {
 
   const sounds = [
     require('../Sounds/rizz-sounds.mp3'),
-    require('../Sounds/summer-time-anime-love_q5du5Qo.mp3'),
-    require('../Sounds/unspoken-rizz.mp3'),
+    require('../Sounds/record-scratch-2.mp3'),
+    require('../Sounds/pew_pew.mp3'),
     require('../Sounds/vine-boom.mp3'),
     require('../Sounds/ack.mp3'),
     require('../Sounds/galaxy-meme.mp3'),
     require('../Sounds/spongebob-fail.mp3'),
-    
-    
-
+    require('../Sounds/Fortnite-Death-Noise.mp3'),
+    require('../Sounds/downer_noise.mp3'), 
   ];
 
   useEffect(() => {

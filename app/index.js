@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from "expo-router";
 import indexStyles from '../styles/index-styles';
 
@@ -13,17 +13,17 @@ export default function App() {
     <View style={indexStyles.background}>
 
       <View style={indexStyles.buttonContainer}>
-
-        <View style={indexStyles.recordingButton}>
-          <Link href={"/soundBoard"}>
-            <Text>Pre Made SoundBoard</Text>
+          <Link style={indexStyles.linkStyle}href={"/soundBoard"}>
+              <Text style={indexStyles.textStyle}>Pre Made SoundBoard</Text>
+            
           </Link>
-        </View>
-        <View style={indexStyles.recordingButton}>
-          <Link href={"/CreateSoundBoard"}>
-            <Text>Make Your Own</Text>
+        
+        
+          <Link style={indexStyles.linkStyle} href={"/CreateSoundBoard"}>
+            <View style={indexStyles.textContainer}>
+              <Text style={indexStyles.textStyle}>Create SoundBoard</Text>
+            </View>
           </Link>
-        </View>
         
 
 
