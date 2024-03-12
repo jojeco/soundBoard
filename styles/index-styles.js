@@ -7,31 +7,52 @@ export const indexStyles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",       
     },
-    buttonContainer: {
-        borderColor: "black",
+    buttonGrid: {
+        
+        justifyContent: "center",
+        alignItems: "center",
+        alignContent: "center",
+        width: 300, // You may adjust this width based on your needs
         borderWidth: 1,
-        width: "50%",
-        height: "20%",
-        margin : 10,
-        padding: 10,
+        flexWrap: 'wrap', // This is not directly applicable here, see gridLayout for wrapping
+        flexDirection: "row",
+    },
+    buttonContainer: {
+        width: 100,
+        height: 100,  
+        justifyContent: "center", // Distribute items evenly along the line
+        alignItems: "center", // Align items to the start of the cross axis
+        textAlign: "center",
+        alignContent: "center",
+        
+    
     },
     
     textStyle: {
-        fontSize: 16,
+        color: "#000", // Text color for the button
+        fontSize: 16, // Adjust text size as needed
         textAlign: "center",
-        flex: 1,
+        alignContent: "center",
     },
-    pressableStyle: {     
-        flex: 1,
-        borderColor: "black",
-        borderWidth: 1,
-    },
+    pressableStyle: {
+        textAlign: "center",
+        justifyContent: "center",
+        alignItems: "center",
+        
+        width: "100%",
+        height: "100%",
+      },
     linkStyle: {
         backgroundColor: "lightgreen",
-        flex: 1,
+        width: "100%",
+        height: "100%",
+
         textAlign: "center",
+        justifyContent: "center",
+        alignItems: "center",
         borderColor: "black",
-        borderWidth: 1,
+        
+       
       },
       Home: {
         backgroundColor: "lightgreen",
@@ -46,10 +67,7 @@ export const indexStyles = StyleSheet.create({
         margin: 10,
         textAlign: "center",
     },
-    textContainer: {
-        flex: 1,
-        textAlign: "center",
-    },
+   
 
  });
  export default indexStyles;
