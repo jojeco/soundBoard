@@ -74,7 +74,7 @@ export const soundBoardStyles = StyleSheet.create({
         backgroundColor: "green",
         
     },
-    SBP1: {
+    SBP: {
         ...baseButtonStyle,
         backgroundColor: "blue",
         
