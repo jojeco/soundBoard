@@ -1,169 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import { Pressable, Text, View, Alert } from 'react-native';
-import { Link } from "expo-router";
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, Button, View, Pressable } from 'react-native';
+import {useEffect, useState } from 'react';
 import { Audio } from 'expo-av';
+import { Link } from "expo-router";
 import indexStyles from '../styles/index-styles';
-import CreateSoundStyles from '../styles/CreateSoundStyles';
-import * as SQLite from "expo-sqlite";
-
-const db = SQLite.openDatabase('soundboard.db');
 
 export default function App() {
-  const [sound, setSound] = useState(null);
-  const [recording, setRecording] = useState(null);
-  const [recordedSounds, setRecordedSounds] = useState([]);
-
-  useEffect(() => {
-    db.transaction(tx => {
-      tx.executeSql(
-        'CREATE TABLE IF NOT EXISTS recordings (id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT);',
-        [],
-        (_, result) => console.log('Table created successfully'),
-        (_, error) => {
-          console.log('Error creating table', error);
-          return false; // To stop transaction on error
-        }
-      );
-      tx.executeSql('SELECT * FROM recordings;', [], (_, { rows }) => {
-        setRecordedSounds(rows._array);
-      });
-    });
-  }, []);
-
-  const playSound = async (uri) => {
-    if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-    }
-    const { sound: newSound } = await Audio.Sound.createAsync({ uri: uri });
-    setSound(newSound);
-    await newSound.playAsync();
-  };
-
-  const stopSound = async () => {
-    if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-      setSound(null);
-    }
-  };
-
+  const [recording, setRecording] = useState(null); // this is the recording object
+  const [recordingUri, setRecordingUri] = useState(null); // the recorded file location
+  const [playback, setPlayback] = useState(null); // the playback object so we can hear the recording
+  const [permissionResponse, requestPermission] = Audio.usePermissions(); // ask permission to record audio
+  
   const startRecording = async () => {
-    if (recording) {
-      Alert.alert("Recording in progress", "Please stop the current recording before starting a new one.");
-      return;
-    }
-
-    if (recordedSounds.length >= 9) {
-      Alert.alert("Limit Reached", "Maximum 9 recordings allowed. Delete an existing recording first.");
-      return;
-    }
-
     try {
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert("Permissions Required", "Please enable audio recording permissions in settings.");
-        return;
+      // request permission to use the mic
+      if (permissionResponse.status !== 'granted') {
+        console.log('Requesting permissions.');
+        await requestPermission();
       }
+      console.log('Permission is ', permissionResponse.status);
 
+      // set some device specific values
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        staysActiveInBackground: true,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
       });
 
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
-      await newRecording.startAsync();
-      setRecording(newRecording);
-    } catch (err) {
-      console.error('Failed to start recording', err);
-      Alert.alert("Recording Error", "Failed to start recording, please try again later.");
+      console.log('Starting recording...');
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets_HIGH_QUALITY
+      );
+      setRecording(recording);
+      console.log('...recording');
     }
-  };
-
-  const stopRecording = async () => {
-    if (!recording) return;
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    setRecording(null);
-    if (uri) {
-      db.transaction(tx => {
-        tx.executeSql('INSERT INTO recordings (uri) VALUES (?);', [uri], (_, result) => {
-          updateRecordedSounds();
-        },
-        (_, error) => {
-          console.error('Error inserting recording into database', error);
-          return false; // To stop transaction on error
-        });
-      });
+    catch (errorEvent) {
+      console.error('Failed to startRecording(): ', errorEvent);
     }
-  };
+  }
 
-  const updateRecordedSounds = () => {
-    db.transaction(tx => {
-      tx.executeSql('SELECT * FROM recordings;', [], (_, { rows }) => {
-        setRecordedSounds(rows._array);
-      });
-    });
-  };
+  const stopRecording = async() => {
+    try{
+      await recording.stopAndUnloadAsync(); //actually stop the recording
 
-  const deleteRecording = (id) => {
-    db.transaction(tx => {
-      tx.executeSql('DELETE FROM recordings WHERE id = ?;', [id], (_, result) => {
-        updateRecordedSounds();
-      },
-      (_, error) => {
-        console.error('Error deleting recording from database', error);
-        return false; // To stop transaction on error
-      });
-    });
-  };
+      const uri = recording.getURI();
+      setRecordingUri(uri);
+
+      setRecording(undefined); //clear the recording object
+
+      console.log('Recording stopped and stored at', uri);
+    } catch (error) {
+      console.error('Failed to stopRecording(): ', error);
+    }
+  }
+
+  const playRecording = async() => {
+    const { sound } = await Audio.Sound.createAsync({ uri: recordingUri, });
+    setPlayback(sound);
+    // Attempt to set the volume higher
+    await sound.setVolumeAsync(1.0); // You can try values slightly higher than 1.0, but be cautious of distortion
+    await sound.replayAsync();
+    console.log('Playing recording from ', recordingUri);
+  }
+
 
   return (
-    <View style={CreateSoundStyles.background}>
-      <View style={indexStyles.recordingButton}>
-        <Link href={"/"}>
-          <Text>Home</Text>
-        </Link>
-      </View>
-      <Pressable onPress={startRecording} style={indexStyles.recordingButton}>
-        <Text>Start Recording</Text>
-      </Pressable>
-      <Pressable onPress={stopRecording} style={indexStyles.recordingButton}>
-        <Text>Stop Recording</Text>
-      </Pressable>
-
-      <View style={CreateSoundStyles.gridContainer}>
-        <View style={CreateSoundStyles.gridLayout}>
-          {recordedSounds.map((recording, index) => (
-            <Pressable
-              key={recording.id}
-              onPress={() => playSound(recording.uri)}
-              onLongPress={() => deleteRecording(recording.id)} // Long press to delete
-              style={({ pressed }) => [
-                CreateSoundStyles.soundButton,
-                pressed ? CreateSoundStyles.soundButtonPressed : {},
-              ]}>
-              <Text>Play {index + 1}</Text>
+    <View style={styles.container}>
+      
+        
+          <Link style={indexStyles.Home} href={"/"}>
+            <Pressable  >
+            <Text>Home</Text>
             </Pressable>
-          ))}
-        </View>
-
-        {sound && (
-          <Pressable
-            onPress={stopSound}
-            style={({ pressed }) => [
-              CreateSoundStyles.soundButton,
-              pressed ? CreateSoundStyles.soundButtonPressed : {},
-            ]}>
-            <Text style={CreateSoundStyles.buttonText}>Stop Sound</Text>
-          </Pressable>
-        )}
-      </View>
+          </Link>
+       
+      <Button
+        title={recording ? 'Stop Recording' : 'Start Recording'}
+        onPress={recording ? stopRecording : startRecording}
+      />
+      {
+        recordingUri && (
+          <Button
+            title="Play Last Recording"
+            onPress={playRecording}
+          />
+        )
+      }
+      
+      <StatusBar style="auto" />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
