@@ -1,149 +1,71 @@
-import React, { useState, useEffect } from 'react';
-import { Pressable, Text, View, Alert } from 'react-native';
+import React, { useState, useEffect } from "react";
+import { Pressable, Text, View, Alert, ImageBackground } from "react-native";
 import { Link } from "expo-router";
-import { Audio } from 'expo-av';
-import indexStyles from '../styles/index-styles';
-import soundBoardStyles from '../styles/soundBoard-styles';
+import { Audio } from "expo-av";
+import indexStyles from "../styles/index-styles";
+import soundBoardStyles from "../styles/soundBoard-styles";
 import * as SQLite from "expo-sqlite";
-const db = SQLite.openDatabase('soundboard.db');
+import BackgroundImage from "../assets/Background.jpg";
+import homePng from "../assets/HomeLogo.png";
+
+
+const db = SQLite.openDatabase("soundboard.db");
 
 export default function App() {
   const [sound, setSound] = useState(null);
-  const [recording, setRecording] = useState(null);
-  const [recordedSounds, setRecordedSounds] = useState([]);
 
   const sounds = [
-    require('../Sounds/rizz-sounds.mp3'),
-    require('../Sounds/record-scratch-2.mp3'),
-    require('../Sounds/pew_pew.mp3'),
-    require('../Sounds/vine-boom.mp3'),
-    require('../Sounds/ack.mp3'),
-    require('../Sounds/galaxy-meme.mp3'),
-    require('../Sounds/spongebob-fail.mp3'),
-    require('../Sounds/Fortnite-Death-Noise.mp3'),
-    require('../Sounds/downer_noise.mp3'), 
-  ];
+    {name: "Rizz", source: require("../Sounds/rizz-sounds.mp3")},
+    {name: "Record", source: require("../Sounds/record-scratch-2.mp3")},
+    {name: "Pew", source: require("../Sounds/pew_pew.mp3")},
+    {name: "Vine", source:   require("../Sounds/vine-boom.mp3")},
+    {name: "ack", source: require("../Sounds/ack.mp3")},
+    {name: "Galaxy", source: require("../Sounds/galaxy-meme.mp3")},
+    {name: "Fail", source: require("../Sounds/spongebob-fail.mp3")},
+    {name: "Death Noise", source: require("../Sounds/Fortnite-Death-Noise.mp3")},
+    {name: "Downer", source: require("../Sounds/downer_noise.mp3")},
 
-  useEffect(() => {
-    db.transaction(tx => {
-      tx.executeSql(
-      );
-      tx.executeSql('SELECT * FROM recordings;', [], (_, { rows }) => {
-        setRecordedSounds(rows._array);
-      });
-    });
-  }, []);
+  ];
 
   // Plays the sound
   const playSound = async (soundResource) => {
-    if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-    }
     const { sound: newSound } = await Audio.Sound.createAsync(soundResource);
     setSound(newSound);
     await newSound.playAsync();
   };
 
-  // Stops the sound
+  //Stops the Sound
   const stopSound = async () => {
     if (sound) {
-      await sound.stopAsync();
       await sound.unloadAsync();
       setSound(null);
     }
   };
 
-  //Starts recording of the sounds, says the maximum limit
-  const startRecording = async () => {
-    if (recordedSounds.length >= 8) {
-      Alert.alert("Limit Reached Maximum 8", "Delete an existing recording first");
-      return;
-    }
-    try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
-      await newRecording.startAsync();
-      setRecording(newRecording);
-    } catch (err) {
-      console.error('Failed to start recording', err);
-    }
-  };
-
-  // Stops recording sound
-  const stopRecording = async () => {
-    if (!recording) return;
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    setRecording(null);
-    if (uri) {
-      db.transaction(tx => {
-        tx.executeSql('INSERT INTO recordings (uri) VALUES (?);', [uri], () => {
-          updateRecordedSounds();
-        });
-      });
-    }
-  };
-
-  // Updates Sound recordings
-  const updateRecordedSounds = () => {
-    db.transaction(tx => {
-      tx.executeSql('SELECT * FROM recordings;', [], (_, { rows }) => {
-        setRecordedSounds(rows._array);
-      });
-    });
-  };
-  
-  // Deletes sound recordings
-  const deleteRecording = (id) => {
-    db.transaction(tx => {
-      tx.executeSql('DELETE FROM recordings WHERE id = ?;', [id], () => {
-        updateRecordedSounds();
-      });
-    });
-  };
-
-  
   return (
-    <View style={soundBoardStyles.background}>
-      <View style={indexStyles.recordingButton}>
-          <Link href={"/"}>
-            <Text>Home</Text>
-          </Link>
-        </View>
-        
-        <View style={soundBoardStyles.gridContainer}>
-          <View style={soundBoardStyles.gridLayout}>
+    <ImageBackground source={BackgroundImage} style={indexStyles.background}>
+      <View source={homePng} style={soundBoardStyles.Home}>
+        <Link href={"/"}>
+          <Text>Home</Text>
+        </Link>
+      </View>
+
+      <View style={soundBoardStyles.gridContainer}>
+        <View style={soundBoardStyles.gridLayout}>
           {sounds.map((soundResource, index) => (
             <Pressable
               key={index}
-              onPress={() => playSound(soundResource)}
+              onPress={() => playSound(soundResource.source)}
               style={({ pressed }) => [
                 soundBoardStyles.soundButton,
                 pressed ? soundBoardStyles.SBP : {}, // Dynamically changes style when pressed
-              ]}>
-              <Text>Play {index + 1}</Text>
+              ]}
+            >
+              <Text>{soundResource.name}</Text>
             </Pressable>
           ))}
         </View>
-      
-        {sound && (
-          <Pressable
-            onPress={stopSound}
-            style={({ pressed }) => [
-              soundBoardStyles.soundButton,
-              pressed ? soundBoardStyles.SBP1 : {}, // Dynamically changes style when pressed
-            ]}>
-            <Text style={soundBoardStyles.buttonText}>Stop Sound</Text>
-          </Pressable>
-        )}
-        </View>
-      
       </View>
+    </ImageBackground>
   );
 }

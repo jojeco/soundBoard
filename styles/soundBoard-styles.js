@@ -35,7 +35,6 @@ export const soundBoardStyles = StyleSheet.create({
         borderWidth: 1,
         flexWrap: 'wrap', // This is not directly applicable here, see gridLayout for wrapping
     },
-    
     gridLayout: {
         flexDirection: 'row',
         justifyContent: 'space-around',
@@ -44,15 +43,16 @@ export const soundBoardStyles = StyleSheet.create({
         width: '100%', // Ensure the container takes the full width of its parent
     },
     Home: {
-        backgroundColor: "lightgreen",
+        flex: 1,
+        width: "100%",
+        height: "105%",
+        position: "absolute",
         alignContent: "center",
         justifyContent: "center",
         width: 40,
         top: 10,
         left: 10,
         position: "absolute",
-        height: 40,
-        borderRadius: 100,
         margin: 10,
     },
     homeText: {
