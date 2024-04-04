@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Pressable, Text, View, Alert, ImageBackground } from "react-native";
+import { Pressable, Text, View, Alert, ImageBackground, Image, TouchableOpacity} from "react-native";
 import { Link } from "expo-router";
 import { Audio } from "expo-av";
 import indexStyles from "../styles/index-styles";
@@ -44,13 +44,15 @@ export default function App() {
 
   return (
     <ImageBackground source={BackgroundImage} style={indexStyles.background}>
-      <View source={homePng} style={soundBoardStyles.Home}>
-        <Link href={"/"}>
-          <Text>Home</Text>
-        </Link>
-      </View>
+      
 
       <View style={soundBoardStyles.gridContainer}>
+        <View source={homePng} style={soundBoardStyles.Home}>
+          <Link href={"/"}>
+            <Text style={soundBoardStyles.homeText}>Home</Text>
+          </Link>
+        </View>
+        
         <View style={soundBoardStyles.gridLayout}>
           {sounds.map((soundResource, index) => (
             <Pressable

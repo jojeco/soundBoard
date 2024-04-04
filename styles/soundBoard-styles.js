@@ -43,22 +43,13 @@ export const soundBoardStyles = StyleSheet.create({
         width: '100%', // Ensure the container takes the full width of its parent
     },
     Home: {
-        flex: 1,
-        width: "100%",
-        height: "105%",
         position: "absolute",
-        alignContent: "center",
-        justifyContent: "center",
-        width: 40,
-        top: 10,
+        width: 50,
+        top: 50,
         left: 10,
         position: "absolute",
         margin: 10,
     },
-    homeText: {
-        fontSize: 16,
-        textAlign: "center",
-    }, 
     soundButton: {
         backgroundColor: "lightblue",
         width: 80,
@@ -85,6 +76,12 @@ export const soundBoardStyles = StyleSheet.create({
         alignContent: "center",
         fontSize: 20,
     },
+    homeText: {
+        fontSize: 16,
+        textAlign: "center",
+        
+        color: "white",
+    }, 
 
 });
 export default soundBoardStyles;

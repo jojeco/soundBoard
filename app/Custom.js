@@ -14,6 +14,10 @@ import * as SQLite from "expo-sqlite";
 import { Audio } from "expo-av";
 import styles from "../styles/Stylesheet";
 import BackgroundImage from "../assets/Background.jpg";
+import homePng from "../assets/HomeLogo.png";
+import soundBoardStyles from "../styles/soundBoard-styles";
+import indexStyles from "../styles/index-styles";
+
 
 export default function App() {
   const [db, setDb] = useState(null);
@@ -189,6 +193,11 @@ export default function App() {
 
   return (
     <ImageBackground source={BackgroundImage} style={styles.backgroundImage}>
+      <View source={homePng} style={soundBoardStyles.Home}>
+          <Link href={"/"}>
+            <Text style={soundBoardStyles.homeText}>Home</Text>
+          </Link>
+        </View>
       <View style={styles.content}>
         <Text style={styles.title}>Soundscape</Text>
         <Pressable
