@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "soundBoard",
-    "slug": "soundBoard",
+    "name": "JC SoundBoard",
+    "slug": "JordanCoomber-SoundBoard",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,13 +15,18 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.JordanCoomber.JC_SoundBoard",
+      "buildNumber": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#ffffff",
+        "package": "com.JordanCoomber.JC_SoundBoard",
+        "versionCode": 1000
+      },
+      "package": "com.JordanCoomber.JC_SoundBoard"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,6 +34,14 @@
     "plugins": [
       "expo-router"
     ],
-    "scheme": "router-demo"
+    "scheme": "router-demo",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "6c37fe21-e237-47d8-a8e1-c5c20cfd43e6"
+      }
+    }
   }
 }
