@@ -33,7 +33,7 @@
     "@babel/runtime": "7.26.10",
     "@remix-run/node": "2.17.2",
     "@remix-run/router": "1.23.2",
-    "@remix-run/server-runtime": "2.17.3",
+    "@remix-run/server-runtime": "2.17.5",
     "@xmldom/xmldom": "0.8.13",
     "ajv": "8.18.0",
     "brace-expansion": "5.0.8",
@@ -60,10 +60,13 @@
     "serve-static": "1.16.0",
     "shell-quote": "1.9.0",
     "tar": "7.5.21",
-    "tmp": "0.2.6",
+    "tmp": "0.2.7",
     "uuid": "11.1.1",
     "ws": "8.21.0",
-    "yaml": "2.8.3"
+    "yaml": "2.8.3",
+    "dicer": "0.3.1",
+    "semver": "7.8.5",
+    "turbo-stream": "3.2.0"
   },
   "private": true
 }
