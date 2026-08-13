@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "expo-router";
 import {
   Modal,
@@ -29,6 +29,7 @@ export default function App() {
   const [recordUri, setRecordUri] = useState(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingSound, setEditingSound] = useState(null);
+  const playbackRef = useRef(null);
 
   useEffect(() => {
     const db = SQLite.openDatabase("soundboard.db");
@@ -47,6 +48,12 @@ export default function App() {
       );
     });
     fetchSounds(); // Fetch sounds when the app loads
+    return () => {
+      if (playbackRef.current !== null) {
+        playbackRef.current.unloadAsync().catch((e) => console.warn("Error unloading sound on unmount:", e));
+        playbackRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -83,6 +90,7 @@ export default function App() {
     console.log("Stopping recording..");
     if (recording) {
       await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       const uri = recording.getURI();
       console.log("Recording stopped and stored at", uri);
       setRecordUri(uri);
@@ -135,9 +143,28 @@ export default function App() {
   }
 
   async function playSound(filePath) {
-    console.log("Loading Sound");
-    const { sound } = await Audio.Sound.createAsync({ uri: filePath });
-    await sound.playAsync();
+    try {
+      console.log("Loading Sound");
+      if (playbackRef.current !== null) {
+        try {
+          await playbackRef.current.unloadAsync();
+        } catch (e) {
+          console.warn("Error unloading previous sound:", e);
+        }
+        playbackRef.current = null;
+      }
+      const { sound } = await Audio.Sound.createAsync({ uri: filePath });
+      playbackRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish && playbackRef.current === sound) {
+          sound.unloadAsync().catch((e) => console.warn("Error unloading finished sound:", e));
+          playbackRef.current = null;
+        }
+      });
+      await sound.playAsync();
+    } catch (e) {
+      console.warn("Error playing sound:", e);
+    }
   }
 
   function showOptions(id) {

@@ -62,13 +62,8 @@ export const soundBoardStyles = StyleSheet.create({
     },
     SBP: {
         ...baseButtonStyle,
-        backgroundColor: "green",
-        
-    },
-    SBP: {
-        ...baseButtonStyle,
         backgroundColor: "blue",
-        
+
     },
     SBStyles: {
         textAlign: "center",

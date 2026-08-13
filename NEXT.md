@@ -1,0 +1,4 @@
+- Migrate `expo-sqlite` API in `Custom.js` from deprecated `openDatabase` to `openDatabaseAsync` (expo-sqlite v13+ async API behind `expo-sqlite/next` entry point)
+- Remove or wire up `components/recording.js` (currently unused; references the deprecated `RECORDING_OPTIONS_PRESET_HIGH_QUALITY` constant renamed in newer expo-av)
+- Add a "Stop" button to the premade soundboard screen so the user can silence a playing sound without pressing another one
+- Add a README.md with build/run instructions, feature list, and a note on required permissions (microphone for Custom.js)

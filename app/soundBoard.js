@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Pressable, Text, View, Alert, ImageBackground, Image, TouchableOpacity} from "react-native";
 import { Link } from "expo-router";
 import { Audio } from "expo-av";
 import indexStyles from "../styles/index-styles";
 import soundBoardStyles from "../styles/soundBoard-styles";
-import * as SQLite from "expo-sqlite";
 import BackgroundImage from "../assets/Background.jpg";
 import homePng from "../assets/HomeLogo.png";
 
 
-const db = SQLite.openDatabase("soundboard.db");
-
 export default function App() {
-  const [sound, setSound] = useState(null);
+  const soundRef = useRef(null);
 
   const sounds = [
     {name: "Rizz", source: require("../Sounds/rizz-sounds.mp3")},
@@ -27,20 +24,43 @@ export default function App() {
 
   ];
 
-  // Plays the sound
-  const playSound = async (soundResource) => {
-    const { sound: newSound } = await Audio.Sound.createAsync(soundResource);
-    setSound(newSound);
-    await newSound.playAsync();
-  };
-
-  //Stops the Sound
-  const stopSound = async () => {
-    if (sound) {
-      await sound.unloadAsync();
-      setSound(null);
+  const unloadCurrentSound = async () => {
+    if (soundRef.current !== null) {
+      try {
+        await soundRef.current.unloadAsync();
+      } catch (e) {
+        console.warn("Error unloading sound:", e);
+      }
+      soundRef.current = null;
     }
   };
+
+  // Plays the sound
+  const playSound = async (soundResource) => {
+    try {
+      await unloadCurrentSound();
+      const { sound: newSound } = await Audio.Sound.createAsync(soundResource);
+      soundRef.current = newSound;
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish && soundRef.current === newSound) {
+          newSound.unloadAsync().catch((e) => console.warn("Error unloading finished sound:", e));
+          soundRef.current = null;
+        }
+      });
+      await newSound.playAsync();
+    } catch (e) {
+      console.warn("Error playing sound:", e);
+    }
+  };
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch((e) =>
+      console.warn("Error setting audio mode:", e)
+    );
+    return () => {
+      unloadCurrentSound();
+    };
+  }, []);
 
   return (
     <ImageBackground source={BackgroundImage} style={indexStyles.background}>
