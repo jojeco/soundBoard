@@ -17,11 +17,16 @@ import BackgroundImage from "../assets/Background.jpg";
 import homePng from "../assets/HomeLogo.png";
 import soundBoardStyles from "../styles/soundBoard-styles";
 import indexStyles from "../styles/index-styles";
+import useSoundPrefs from "../hooks/useSoundPrefs";
+import soundPrefsLib from "../lib/soundPrefs";
+import SoundButton from "../components/SoundButton";
 
+const { customId } = soundPrefsLib;
 
 export default function App() {
   const [db, setDb] = useState(null);
   const [sounds, setSounds] = useState([]);
+  const { ready, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort } = useSoundPrefs();
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState();
   const [modalVisible, setModalVisible] = useState(false);
@@ -72,7 +77,7 @@ export default function App() {
     });
     console.log("Starting recording..");
     const { recording } = await Audio.Recording.createAsync(
-      Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY
+      Audio.RecordingOptionsPresets.HIGH_QUALITY
     );
     setRecording(recording);
     setIsRecording(true);
@@ -134,13 +139,15 @@ export default function App() {
     }
   }
 
-  async function playSound(filePath) {
+  async function playSound(filePath, prefId) {
     console.log("Loading Sound");
     const { sound } = await Audio.Sound.createAsync({ uri: filePath });
+    if (prefId) recordPlay(prefId);
     await sound.playAsync();
   }
 
-  function showOptions(id) {
+  function showOptions(id, prefId) {
+    const favoriteLabel = isFavorite(prefId) ? "Unfavorite" : "Favorite";
     Alert.alert("Sound Options", "Choose an option", [
       { text: "Cancel", style: "cancel" },
       {
@@ -149,6 +156,7 @@ export default function App() {
         style: "destructive",
       },
       { text: "Rename", onPress: () => promptRenameSound(id) },
+      { text: favoriteLabel, onPress: () => toggleFavorite(prefId) },
     ]);
   }
 
@@ -191,6 +199,9 @@ export default function App() {
     }
   }
 
+  const prefItems = sounds.map((s) => ({ id: customId(s.id), dbSound: s }));
+  const orderedSounds = ready ? sort(prefItems) : prefItems;
+
   return (
     <ImageBackground source={BackgroundImage} style={styles.backgroundImage}>
       <View source={homePng} style={soundBoardStyles.Home}>
@@ -215,15 +226,18 @@ export default function App() {
           style={styles.listArea}
           contentContainerStyle={styles.flexRow}
         >
-          {sounds.map(({ id, name, filePath }) => (
-            <Pressable
-              key={id}
-              onPress={() => playSound(filePath)}
-              onLongPress={() => showOptions(id)}
+          {orderedSounds.map(({ id: prefId, dbSound }) => (
+            <SoundButton
+              key={prefId}
+              label={dbSound.name}
+              labelStyle={styles.buttonText}
+              favorite={isFavorite(prefId)}
+              playCount={getPlayCount(prefId)}
+              onPress={() => playSound(dbSound.filePath, prefId)}
+              onLongPress={() => showOptions(dbSound.id, prefId)}
               style={styles.button}
-            >
-              <Text style={styles.buttonText}>{name}</Text>
-            </Pressable>
+              pressedStyle={styles.buttonRecording}
+            />
           ))}
         </ScrollView>
         <Modal
