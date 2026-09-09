@@ -17,7 +17,7 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   exports it and it's covered by tests, but no screen surfaces a "recently
   played" strip/section yet — only the 4-mode sort bar consumes the sort
   logic today.
-- **Dedupe the duplicated `soundBoard-styles.js` `SBP` key** (there are two
-  `SBP:` entries in the `StyleSheet.create` call — the second silently wins)
-  and reconcile it with the new `pressedStyle` prop `SoundButton` accepts, so
-  pressed-state styling is defined in one place instead of two.
+- **Retire `styles/CreateSoundStyles.js`.** Nothing imports it — the create
+  screen (`app/Custom.js`) pulls from `styles/Stylesheet.js` instead, so the
+  whole file (including its unused `soundButton`/`soundButtonPressed` pair) is
+  dead weight. Same class of cleanup as `components/recording.js` above.

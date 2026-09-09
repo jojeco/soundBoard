@@ -10,13 +10,6 @@ const baseButtonStyle = {
         margin : 10,    
   };
   
-  const baseButtonTextStyle = {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  };
-
 export const soundBoardStyles = StyleSheet.create({
     // background styles
     background: {
@@ -47,23 +40,11 @@ export const soundBoardStyles = StyleSheet.create({
         width: 50,
         top: 50,
         left: 10,
-        position: "absolute",
         margin: 10,
     },
     soundButton: {
-        backgroundColor: "lightblue",
-        width: 80,
-        height: 80,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 10,
-        padding: 10,
-        margin : 10,    
-    },
-    SBP: {
         ...baseButtonStyle,
-        backgroundColor: "green",
-        
+        backgroundColor: "lightblue",
     },
     SBP: {
         ...baseButtonStyle,
