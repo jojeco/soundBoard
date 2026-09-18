@@ -9,6 +9,7 @@ const {
   isFavorite: prefsIsFavorite,
   getPlayCount: prefsGetPlayCount,
   sortSounds,
+  getRecentlyPlayed: prefsGetRecentlyPlayed,
 } = soundPrefs;
 
 // Shared favorites/play-stats hook used by both soundboard screens.
@@ -60,6 +61,11 @@ export default function useSoundPrefs() {
     [prefs, sortMode]
   );
 
+  const recentlyPlayed = useCallback(
+    (sounds, limit) => prefsGetRecentlyPlayed(sounds, prefs, limit),
+    [prefs]
+  );
+
   return {
     prefs,
     ready,
@@ -70,5 +76,6 @@ export default function useSoundPrefs() {
     isFavorite,
     getPlayCount,
     sort,
+    recentlyPlayed,
   };
 }

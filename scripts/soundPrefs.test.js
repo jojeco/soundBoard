@@ -240,4 +240,18 @@ check("getRecentlyPlayed with nothing played returns empty array", (() => {
   return recent.length === 0;
 })());
 
+check("getRecentlyPlayed with limit above played count returns only played items", (() => {
+  let prefs = recordPlay(defaultPrefs(), "a", 100);
+  prefs = recordPlay(prefs, "b", 200);
+  const recent = getRecentlyPlayed(sample, prefs, 10);
+  return recent.length === 2 && recent.map((s) => s.id).join(",") === "b,a";
+})());
+
+check("getRecentlyPlayed keeps original order for equal lastPlayedAt", (() => {
+  let prefs = recordPlay(defaultPrefs(), "b", 100);
+  prefs = recordPlay(prefs, "a", 100);
+  const recent = getRecentlyPlayed(sample, prefs, 10);
+  return recent.map((s) => s.id).join(",") === "a,b";
+})());
+
 console.log(`soundPrefs.test.js: ${passed} assertions passed`);

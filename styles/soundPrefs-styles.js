@@ -48,6 +48,43 @@ export const soundPrefsStyles = StyleSheet.create({
     paddingHorizontal: 4,
     overflow: "hidden",
   },
+  recentSection: {
+    width: "100%",
+    marginBottom: 6,
+  },
+  recentTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#4EC5F1",
+    marginLeft: 10,
+    marginBottom: 2,
+  },
+  recentRow: {
+    height: 72,
+  },
+  recentChip: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "lightblue",
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 4,
+  },
+  recentChipPressed: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "blue",
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 4,
+  },
+  recentChipText: {
+    fontSize: 10,
+    textAlign: "center",
+    color: "#333333",
+  },
   stopButton: {
     backgroundColor: "#FF6347",
     borderRadius: 10,

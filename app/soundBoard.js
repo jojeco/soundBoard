@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Pressable, Text, View, ImageBackground } from "react-native";
+import { Pressable, Text, View, ImageBackground, ScrollView } from "react-native";
 import { Link } from "expo-router";
 import { Audio } from "expo-av";
 import indexStyles from "../styles/index-styles";
@@ -24,7 +24,7 @@ export default function App() {
   // A ref (not state) so playSound can always unload the *latest* sound
   // synchronously; nothing in the render output depends on it.
   const soundRef = useRef(null);
-  const { ready, sortMode, setSortMode, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort } =
+  const { ready, sortMode, setSortMode, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort, recentlyPlayed } =
     useSoundPrefs();
 
   const sounds = [
@@ -61,6 +61,7 @@ export default function App() {
   };
 
   const orderedSounds = ready ? sort(sounds) : sounds;
+  const recent = ready ? recentlyPlayed(sounds, 5) : [];
 
   return (
     <ImageBackground source={BackgroundImage} style={indexStyles.background}>
@@ -92,6 +93,31 @@ export default function App() {
             </Pressable>
           ))}
         </View>
+
+        {ready && recent.length > 0 ? (
+          <View style={soundPrefsStyles.recentSection}>
+            <Text style={soundPrefsStyles.recentTitle}>Recently played</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={soundPrefsStyles.recentRow}
+              contentContainerStyle={{ alignItems: "center", paddingHorizontal: 6 }}
+            >
+              {recent.map((s) => (
+                <SoundButton
+                  key={"recent-" + s.id}
+                  label={s.name}
+                  labelStyle={soundPrefsStyles.recentChipText}
+                  favorite={isFavorite(s.id)}
+                  onPress={() => playSound(s.source, s.id)}
+                  onLongPress={() => toggleFavorite(s.id)}
+                  style={soundPrefsStyles.recentChip}
+                  pressedStyle={soundPrefsStyles.recentChipPressed}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={soundBoardStyles.gridLayout}>
           {orderedSounds.map((soundResource) => (

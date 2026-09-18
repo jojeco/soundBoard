@@ -13,10 +13,12 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   already a small, pure, dependency-free module — a natural first file to
   convert and a good place to define shared `SoundPrefs`/`SortMode` types
   before spreading them to the screens and the hook.
-- **Wire `getRecentlyPlayed` into the UI.** The pure logic module already
-  exports it and it's covered by tests, but no screen surfaces a "recently
-  played" strip/section yet — only the 4-mode sort bar consumes the sort
-  logic today.
+- ~~**Wire `getRecentlyPlayed` into the UI.**~~ **DONE** — `app/soundBoard.js`
+  now shows a horizontal "Recently played" strip (last 5) above the grid via
+  `recentlyPlayed` from `hooks/useSoundPrefs.js`.
+- **Recently-played for custom sounds.** The strip only covers the built-in
+  sounds on `app/soundBoard.js`; sounds recorded in `app/Custom.js` don't
+  appear in it, and there is no way to clear the recents.
 - **Retire `styles/CreateSoundStyles.js`.** Nothing imports it — the create
   screen (`app/Custom.js`) pulls from `styles/Stylesheet.js` instead, so the
   whole file (including its unused `soundButton`/`soundButtonPressed` pair) is
