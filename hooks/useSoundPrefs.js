@@ -10,6 +10,10 @@ const {
   getPlayCount: prefsGetPlayCount,
   sortSounds,
   getRecentlyPlayed: prefsGetRecentlyPlayed,
+  clearRecents: libClearRecents,
+  forgetSound: libForgetSound,
+  pruneByPrefix: libPruneByPrefix,
+  hasRecents: libHasRecents,
 } = soundPrefs;
 
 // Shared favorites/play-stats hook used by both soundboard screens.
@@ -66,6 +70,31 @@ export default function useSoundPrefs() {
     [prefs]
   );
 
+  // Clears the recently-played list only; favorites and play counts stay.
+  const clearRecents = useCallback(() => {
+    setPrefs((current) => libClearRecents(current));
+  }, []);
+
+  // Drops one sound's favorite flag and stats (e.g. after it is deleted).
+  const forgetSound = useCallback((id) => {
+    setPrefs((current) => libForgetSound(current, id));
+  }, []);
+
+  // Drops favorites/stats under `prefix` whose id is not in `knownIds`.
+  // Returns the same state object when nothing was dropped so React bails out
+  // of the update (no re-render, no redundant save, no effect loops).
+  const pruneByPrefix = useCallback((prefix, knownIds) => {
+    setPrefs((current) => {
+      const next = libPruneByPrefix(current, prefix, knownIds);
+      const same =
+        Object.keys(next.favorites).length === Object.keys(current.favorites).length &&
+        Object.keys(next.stats).length === Object.keys(current.stats).length;
+      return same ? current : next;
+    });
+  }, []);
+
+  const hasRecents = libHasRecents(prefs);
+
   return {
     prefs,
     ready,
@@ -77,5 +106,9 @@ export default function useSoundPrefs() {
     getPlayCount,
     sort,
     recentlyPlayed,
+    clearRecents,
+    forgetSound,
+    pruneByPrefix,
+    hasRecents,
   };
 }

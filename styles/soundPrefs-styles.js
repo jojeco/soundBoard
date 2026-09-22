@@ -85,6 +85,21 @@ export const soundPrefsStyles = StyleSheet.create({
     textAlign: "center",
     color: "#333333",
   },
+  clearRecentsButton: {
+    alignSelf: "flex-end",
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#4EC5F1",
+    borderRadius: 12,
+    paddingVertical: 2,
+    paddingHorizontal: 10,
+    marginRight: 10,
+    marginBottom: 4,
+  },
+  clearRecentsText: {
+    fontSize: 11,
+    color: "#4EC5F1",
+  },
   stopButton: {
     backgroundColor: "#FF6347",
     borderRadius: 10,

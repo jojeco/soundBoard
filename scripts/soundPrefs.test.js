@@ -19,6 +19,10 @@ const {
   SORT_MODES,
   sortSounds,
   getRecentlyPlayed,
+  clearRecents,
+  forgetSound,
+  pruneByPrefix,
+  hasRecents,
 } = soundPrefs;
 
 let passed = 0;
@@ -253,5 +257,158 @@ check("getRecentlyPlayed keeps original order for equal lastPlayedAt", (() => {
   const recent = getRecentlyPlayed(sample, prefs, 10);
   return recent.map((s) => s.id).join(",") === "a,b";
 })());
+
+// --- clearRecents ---------------------------------------------------------
+
+function playedPrefs() {
+  let prefs = defaultPrefs();
+  prefs = recordPlay(prefs, "a", 100);
+  prefs = recordPlay(prefs, "a", 150);
+  prefs = recordPlay(prefs, "a", 200);
+  prefs = recordPlay(prefs, "b", 300);
+  return toggleFavorite(prefs, "a");
+}
+
+check("clearRecents nulls lastPlayedAt for every entry", (() => {
+  const cleared = clearRecents(playedPrefs());
+  return getLastPlayed(cleared, "a") === null && getLastPlayed(cleared, "b") === null;
+})());
+
+check("clearRecents preserves playCount (3 stays 3)", (() => {
+  const cleared = clearRecents(playedPrefs());
+  return getPlayCount(cleared, "a") === 3 && getPlayCount(cleared, "b") === 1;
+})());
+
+check("clearRecents preserves favorites", isFavorite(clearRecents(playedPrefs()), "a"));
+
+check("getRecentlyPlayed is empty after clearRecents", (() => {
+  const items = [{ id: "a" }, { id: "b" }];
+  return getRecentlyPlayed(items, clearRecents(playedPrefs()), 5).length === 0;
+})());
+
+check("recordPlay after clearRecents continues the count (3 -> 4)", (() => {
+  const next = recordPlay(clearRecents(playedPrefs()), "a", 999);
+  return getPlayCount(next, "a") === 4 && getLastPlayed(next, "a") === 999;
+})());
+
+check("clearRecents survives serializePrefs -> parsePrefs round-trip", (() => {
+  const restored = parsePrefs(serializePrefs(clearRecents(playedPrefs())));
+  return getPlayCount(restored, "a") === 3 && getLastPlayed(restored, "a") === null && isFavorite(restored, "a");
+})());
+
+check("clearRecents on defaults is a no-op", (() => {
+  const cleared = clearRecents(defaultPrefs());
+  return (
+    cleared.version === PREFS_VERSION &&
+    Object.keys(cleared.favorites).length === 0 &&
+    Object.keys(cleared.stats).length === 0
+  );
+})());
+
+check("clearRecents does not mutate its input", (() => {
+  const input = playedPrefs();
+  const before = JSON.stringify(input);
+  clearRecents(input);
+  return JSON.stringify(input) === before;
+})());
+
+// --- forgetSound ----------------------------------------------------------
+
+check("forgetSound removes the favorite flag and stats entry", (() => {
+  const next = forgetSound(playedPrefs(), "a");
+  return !isFavorite(next, "a") && getPlayCount(next, "a") === 0 && getLastPlayed(next, "a") === null;
+})());
+
+check("forgetSound leaves other sounds untouched", (() => {
+  const next = forgetSound(playedPrefs(), "a");
+  return getPlayCount(next, "b") === 1 && getLastPlayed(next, "b") === 300;
+})());
+
+check("forgetSound with an unknown id is a no-op", (() => {
+  const input = playedPrefs();
+  return serializePrefs(forgetSound(input, "nope")) === serializePrefs(input);
+})());
+
+check("forgetSound does not mutate its input", (() => {
+  const input = playedPrefs();
+  const before = JSON.stringify(input);
+  forgetSound(input, "a");
+  return JSON.stringify(input) === before;
+})());
+
+// --- pruneByPrefix --------------------------------------------------------
+
+function mixedPrefs() {
+  let prefs = defaultPrefs();
+  prefs = recordPlay(prefs, "builtin:rizz", 10);
+  prefs = recordPlay(prefs, "custom:1", 20);
+  prefs = recordPlay(prefs, "custom:2", 30);
+  prefs = toggleFavorite(prefs, "builtin:pew");
+  prefs = toggleFavorite(prefs, "custom:1");
+  prefs = toggleFavorite(prefs, "custom:3");
+  return prefs;
+}
+
+check("pruneByPrefix leaves every builtin favorite/stat intact", (() => {
+  const next = pruneByPrefix(mixedPrefs(), "custom:", ["custom:1"]);
+  return isFavorite(next, "builtin:pew") && getPlayCount(next, "builtin:rizz") === 1;
+})());
+
+check("pruneByPrefix drops unknown custom keys and keeps known ones", (() => {
+  const next = pruneByPrefix(mixedPrefs(), "custom:", ["custom:1"]);
+  return (
+    isFavorite(next, "custom:1") &&
+    getPlayCount(next, "custom:1") === 1 &&
+    !isFavorite(next, "custom:3") &&
+    getPlayCount(next, "custom:2") === 0
+  );
+})());
+
+check("pruneByPrefix accepts a Set of known ids", (() => {
+  const next = pruneByPrefix(mixedPrefs(), "custom:", new Set(["custom:2"]));
+  return getPlayCount(next, "custom:2") === 1 && getPlayCount(next, "custom:1") === 0;
+})());
+
+check("pruneByPrefix with empty knownIds drops all under that prefix only", (() => {
+  const next = pruneByPrefix(mixedPrefs(), "custom:", []);
+  return (
+    !isFavorite(next, "custom:1") &&
+    getPlayCount(next, "custom:2") === 0 &&
+    isFavorite(next, "builtin:pew") &&
+    getPlayCount(next, "builtin:rizz") === 1
+  );
+})());
+
+check("pruneByPrefix treats invalid knownIds as empty", (() => {
+  const next = pruneByPrefix(mixedPrefs(), "custom:", null);
+  return !isFavorite(next, "custom:1") && isFavorite(next, "builtin:pew");
+})());
+
+check("pruneByPrefix with a non-string or empty prefix returns prefs unchanged", (() => {
+  const input = mixedPrefs();
+  return (
+    serializePrefs(pruneByPrefix(input, "", [])) === serializePrefs(input) &&
+    serializePrefs(pruneByPrefix(input, null, [])) === serializePrefs(input) &&
+    serializePrefs(pruneByPrefix(input, 5, [])) === serializePrefs(input)
+  );
+})());
+
+check("pruneByPrefix does not mutate its input", (() => {
+  const input = mixedPrefs();
+  const before = JSON.stringify(input);
+  pruneByPrefix(input, "custom:", []);
+  return JSON.stringify(input) === before;
+})());
+
+// --- hasRecents -----------------------------------------------------------
+
+check("hasRecents is false on defaults", hasRecents(defaultPrefs()) === false);
+check("hasRecents is true after recordPlay", hasRecents(recordPlay(defaultPrefs(), "a", 1)) === true);
+check("hasRecents is false after clearRecents", hasRecents(clearRecents(playedPrefs())) === false);
+check(
+  "hasRecents is false when only playCount > 0 with lastPlayedAt null",
+  hasRecents({ version: 1, favorites: {}, stats: { a: { playCount: 4, lastPlayedAt: null } } }) === false
+);
+check("hasRecents tolerates garbage input", hasRecents(null) === false && hasRecents("x") === false);
 
 console.log(`soundPrefs.test.js: ${passed} assertions passed`);

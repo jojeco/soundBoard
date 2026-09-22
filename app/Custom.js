@@ -16,6 +16,7 @@ import styles from "../styles/Stylesheet";
 import BackgroundImage from "../assets/Background.jpg";
 import homePng from "../assets/HomeLogo.png";
 import soundBoardStyles from "../styles/soundBoard-styles";
+import soundPrefsStyles from "../styles/soundPrefs-styles";
 import indexStyles from "../styles/index-styles";
 import useSoundPrefs from "../hooks/useSoundPrefs";
 import soundPrefsLib from "../lib/soundPrefs";
@@ -26,7 +27,20 @@ const { customId } = soundPrefsLib;
 export default function App() {
   const [db, setDb] = useState(null);
   const [sounds, setSounds] = useState([]);
-  const { ready, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort } = useSoundPrefs();
+  const [soundsLoaded, setSoundsLoaded] = useState(false);
+  const {
+    ready,
+    toggleFavorite,
+    recordPlay,
+    isFavorite,
+    getPlayCount,
+    sort,
+    recentlyPlayed,
+    clearRecents,
+    forgetSound,
+    pruneByPrefix,
+    hasRecents,
+  } = useSoundPrefs();
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState();
   const [modalVisible, setModalVisible] = useState(false);
@@ -59,6 +73,17 @@ export default function App() {
       fetchSounds();
     }
   }, [db]);
+
+  // Drop favorites/stats for recorded sounds that no longer exist in the DB
+  // (a reused rowid must not inherit a deleted sound's stats). Runs once per
+  // successful fetch, and only after prefs have loaded and the DB has been read
+  // at least once, so it can never prune against default/empty data mid-load.
+  // pruneByPrefix keeps the same state object when nothing is dropped, so this
+  // cannot loop.
+  useEffect(() => {
+    if (!ready || !soundsLoaded) return;
+    pruneByPrefix("custom:", sounds.map((s) => customId(s.id)));
+  }, [ready, soundsLoaded, sounds, pruneByPrefix]);
 
   async function toggleRecording() {
     if (isRecording) {
@@ -133,6 +158,7 @@ export default function App() {
       db.transaction((tx) => {
         tx.executeSql("select * from sounds", [], (_, { rows: { _array } }) => {
           setSounds(_array);
+          setSoundsLoaded(true);
           console.log("Sounds fetched from DB", _array);
         });
       });
@@ -166,7 +192,10 @@ export default function App() {
         tx.executeSql("delete from sounds where id = ?", [id]);
       },
       null,
-      fetchSounds // Refresh the list after deleting
+      () => {
+        forgetSound(customId(id)); // Drop the deleted sound's favorite/stats
+        fetchSounds(); // Refresh the list after deleting
+      }
     );
   }
 
@@ -201,6 +230,18 @@ export default function App() {
 
   const prefItems = sounds.map((s) => ({ id: customId(s.id), dbSound: s }));
   const orderedSounds = ready ? sort(prefItems) : prefItems;
+  const recent = ready ? recentlyPlayed(prefItems, 5) : [];
+
+  function confirmClearRecents() {
+    Alert.alert(
+      "Clear recents?",
+      "This clears the recently-played list. Favorites and play counts are kept.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Clear", style: "destructive", onPress: clearRecents },
+      ]
+    );
+  }
 
   return (
     <ImageBackground source={BackgroundImage} style={styles.backgroundImage}>
@@ -222,6 +263,35 @@ export default function App() {
             {isRecording ? "Stop Recording" : "Start Recording"}
           </Text>
         </Pressable>
+        {ready && recent.length > 0 ? (
+          <View style={soundPrefsStyles.recentSection}>
+            <Text style={soundPrefsStyles.recentTitle}>Recently played</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={soundPrefsStyles.recentRow}
+              contentContainerStyle={{ alignItems: "center", paddingHorizontal: 6 }}
+            >
+              {recent.map(({ id: prefId, dbSound }) => (
+                <SoundButton
+                  key={"recent-" + prefId}
+                  label={dbSound.name}
+                  labelStyle={soundPrefsStyles.recentChipText}
+                  favorite={isFavorite(prefId)}
+                  onPress={() => playSound(dbSound.filePath, prefId)}
+                  onLongPress={() => showOptions(dbSound.id, prefId)}
+                  style={soundPrefsStyles.recentChip}
+                  pressedStyle={soundPrefsStyles.recentChipPressed}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+        {ready && hasRecents ? (
+          <Pressable style={soundPrefsStyles.clearRecentsButton} onPress={confirmClearRecents}>
+            <Text style={soundPrefsStyles.clearRecentsText}>Clear recents</Text>
+          </Pressable>
+        ) : null}
         <ScrollView
           style={styles.listArea}
           contentContainerStyle={styles.flexRow}

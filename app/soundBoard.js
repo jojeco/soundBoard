@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Pressable, Text, View, ImageBackground, ScrollView } from "react-native";
+import { Alert, Pressable, Text, View, ImageBackground, ScrollView } from "react-native";
 import { Link } from "expo-router";
 import { Audio } from "expo-av";
 import indexStyles from "../styles/index-styles";
@@ -24,7 +24,7 @@ export default function App() {
   // A ref (not state) so playSound can always unload the *latest* sound
   // synchronously; nothing in the render output depends on it.
   const soundRef = useRef(null);
-  const { ready, sortMode, setSortMode, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort, recentlyPlayed } =
+  const { ready, sortMode, setSortMode, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort, recentlyPlayed, clearRecents, hasRecents } =
     useSoundPrefs();
 
   const sounds = [
@@ -58,6 +58,17 @@ export default function App() {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
+  };
+
+  const confirmClearRecents = () => {
+    Alert.alert(
+      "Clear recents?",
+      "This clears the recently-played list. Favorites and play counts are kept.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Clear", style: "destructive", onPress: clearRecents },
+      ]
+    );
   };
 
   const orderedSounds = ready ? sort(sounds) : sounds;
@@ -117,6 +128,12 @@ export default function App() {
               ))}
             </ScrollView>
           </View>
+        ) : null}
+
+        {ready && hasRecents ? (
+          <Pressable style={soundPrefsStyles.clearRecentsButton} onPress={confirmClearRecents}>
+            <Text style={soundPrefsStyles.clearRecentsText}>Clear recents</Text>
+          </Pressable>
         ) : null}
 
         <View style={soundBoardStyles.gridLayout}>
