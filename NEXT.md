@@ -22,15 +22,12 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   (`clearRecents` in `lib/soundPrefs.js`). Deleting a custom sound calls
   `forgetSound`, and each successful fetch runs `pruneByPrefix("custom:", …)`,
   so a reused SQLite rowid can't inherit a deleted sound's stale stats.
-- **Give the two screens a shared prefs store.** Each screen calls
-  `useSoundPrefs()` separately, so each holds its own copy of `prefs`, and in an
-  expo-router stack the screen you navigated away from stays mounted with a
-  stale one. Clearing recents on `app/Custom.js` therefore leaves
-  `app/soundBoard.js` still showing its strip, and the next `recordPlay` there
-  writes the old timestamps back. The orphan prune self-heals (the screen
-  remounts, reloads storage and re-prunes); "Clear recents" does not. Fix is a
-  shared store/context around `useSoundPrefs`, or reloading prefs on screen
-  focus.
+- ~~**Give the two screens a shared prefs store.**~~ **DONE** — added
+  `lib/prefsStore.js` (module-level pub/sub store) and refactored
+  `hooks/useSoundPrefs.js` to read/write through one shared store instance
+  instead of a per-screen `useState`, so `app/soundBoard.js` and
+  `app/Custom.js` now always see the same prefs, loaded from storage exactly
+  once.
 - **Custom-sound recents are per-screen** — the strips are also scoped per
   screen, so a single unified strip would need the builtin `require()` handles
   available on `Custom.js`.
