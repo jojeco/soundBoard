@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Alert, Pressable, Text, View, ImageBackground, ScrollView } from "react-native";
 import { Link } from "expo-router";
 import { Audio } from "expo-av";
@@ -7,11 +7,15 @@ import soundBoardStyles from "../styles/soundBoard-styles";
 import soundPrefsStyles from "../styles/soundPrefs-styles";
 import soundPrefsLib from "../lib/soundPrefs";
 import useSoundPrefs from "../hooks/useSoundPrefs";
+import useCombos from "../hooks/useCombos";
 import SoundButton from "../components/SoundButton";
+import ComboPanel from "../components/ComboPanel";
+import comboLib from "../lib/combos";
 import BackgroundImage from "../assets/Background.jpg";
 import homePng from "../assets/HomeLogo.png";
 
 const { builtinId, SORT_MODES } = soundPrefsLib;
+const { resolveSteps, buildSchedule, createComboRunner } = comboLib;
 
 const SORT_LABELS = {
   default: "Default",
@@ -26,6 +30,14 @@ export default function App() {
   const soundRef = useRef(null);
   const { ready, sortMode, setSortMode, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort, recentlyPlayed, clearRecents, hasRecents } =
     useSoundPrefs();
+
+  // Combo playback state: the active runner, every Audio.Sound a combo has
+  // spawned (so stopAll can unload them even mid-sequence), and which combo
+  // (if any) is currently playing.
+  const runnerRef = useRef(null);
+  const comboSoundsRef = useRef([]);
+  const [playingComboId, setPlayingComboId] = useState(null);
+  const { ready: combosReady, combos, createCombo, updateCombo, deleteCombo } = useCombos();
 
   const sounds = [
     { id: builtinId("Rizz"), name: "Rizz", source: require("../Sounds/rizz-sounds.mp3") },
@@ -52,13 +64,89 @@ export default function App() {
     await newSound.playAsync();
   };
 
-  // Stops the sound
-  const stopSound = async () => {
+  // Plays a saved (or draft-preview) combo: builds the step schedule from
+  // the live `sounds` list, wires a runner that layers each step's own
+  // Audio.Sound instance (so overlapping steps don't cut each other off),
+  // and tracks the playing id so the Premade screen/ComboPanel can show it.
+  // NOTE: combo playback does NOT call recordPlay for any step — play
+  // counts/recents stay a measure of manual single-sound taps, not combo
+  // playback.
+  const playCombo = async (combo) => {
+    await stopAll();
+    const schedule = buildSchedule(resolveSteps(combo, sounds));
+    // `play` is NOT awaited by the runner (createComboRunner fires it from a
+    // timer callback), so every path must settle without throwing — an
+    // unhandled rejection here would surface as an RN warning. It also races
+    // the player getting stopped/replaced while Audio.Sound.createAsync is
+    // still loading: if `runnerRef.current` no longer points at THIS runner
+    // by the time the load resolves (Stop was tapped, the screen unmounted,
+    // or another combo started), drop the sound instead of playing it late.
+    const play = async (sound) => {
+      try {
+        const { sound: newSound } = await Audio.Sound.createAsync(sound.source);
+        if (runnerRef.current !== runner) {
+          newSound.unloadAsync().catch(() => {});
+          return;
+        }
+        comboSoundsRef.current = comboSoundsRef.current.concat([newSound]);
+        newSound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish) {
+            newSound.unloadAsync().catch(() => {});
+            comboSoundsRef.current = comboSoundsRef.current.filter((s) => s !== newSound);
+          }
+        });
+        await newSound.playAsync();
+      } catch (e) {
+        // Load/play failed (or was unloaded out from under us) — nothing to
+        // clean up, just don't let the rejection go unhandled.
+      }
+    };
+    const runner = createComboRunner({
+      schedule,
+      play,
+      setTimer: setTimeout,
+      clearTimer: clearTimeout,
+      onDone: () => setPlayingComboId(null),
+    });
+    // Guards against two playCombo() calls racing past the `await stopAll()`
+    // above (e.g. rapid combo switching): whichever runner loses this
+    // assignment is still cancelled, not left to keep firing underneath.
+    if (runnerRef.current) runnerRef.current.cancel();
+    runnerRef.current = runner;
+    setPlayingComboId(combo.id);
+    runner.start();
+  };
+
+  // Stops any playing combo (cancelling its runner + unloading every sound
+  // it spawned) and then runs the existing single-sound stop logic.
+  const stopAll = async () => {
+    if (runnerRef.current) {
+      runnerRef.current.cancel();
+      runnerRef.current = null;
+    }
+    const comboSounds = comboSoundsRef.current;
+    comboSoundsRef.current = [];
+    for (let i = 0; i < comboSounds.length; i++) {
+      try {
+        await comboSounds[i].unloadAsync();
+      } catch (e) {
+        // already unloaded/unloading — fine to ignore.
+      }
+    }
     if (soundRef.current) {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
+    setPlayingComboId(null);
   };
+
+  // Unmount cleanup: cancels any running combo and its timers so nothing
+  // keeps firing after the screen is gone.
+  useEffect(() => {
+    return () => {
+      stopAll();
+    };
+  }, []);
 
   const confirmClearRecents = () => {
     Alert.alert(
@@ -136,6 +224,19 @@ export default function App() {
           </Pressable>
         ) : null}
 
+        {combosReady ? (
+          <ComboPanel
+            combos={combos}
+            sounds={sounds}
+            playingComboId={playingComboId}
+            onPlay={playCombo}
+            onStop={stopAll}
+            onCreate={createCombo}
+            onUpdate={updateCombo}
+            onDelete={deleteCombo}
+          />
+        ) : null}
+
         <View style={soundBoardStyles.gridLayout}>
           {orderedSounds.map((soundResource) => (
             <SoundButton
@@ -151,7 +252,7 @@ export default function App() {
           ))}
         </View>
 
-        <Pressable style={soundPrefsStyles.stopButton} onPress={stopSound}>
+        <Pressable style={soundPrefsStyles.stopButton} onPress={stopAll}>
           <Text style={soundPrefsStyles.stopButtonText}>Stop</Text>
         </Pressable>
       </View>

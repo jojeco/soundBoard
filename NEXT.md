@@ -35,3 +35,21 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   screen (`app/Custom.js`) pulls from `styles/Stylesheet.js` instead, so the
   whole file (including its unused `soundButton`/`soundButtonPressed` pair) is
   dead weight. Same class of cleanup as `components/recording.js` above.
+- ~~**Combos**~~ **DONE** — added `lib/combos.js` (pure model: combos, steps,
+  delays, schedule-building, and an injected-clock `createComboRunner`),
+  `lib/comboStorage.js` + `hooks/useCombos.js` (its own AsyncStorage key and
+  store instance), and `components/ComboPanel.js` wired into
+  `app/soundBoard.js` (Premade screen). Users can build, name, save, edit and
+  play back an ordered sequence of premade sounds with a per-step delay, and
+  combos persist across app restarts. Deliberately kept combos on their OWN
+  storage key (`@soundboard/combos/v1`) instead of adding a field to the
+  existing prefs blob — every mutator in `lib/soundPrefs.js` rebuilds that
+  object as exactly `{version, favorites, stats}`, so any extra field would
+  get silently wiped on the next favorite toggle or play.
+- **Combos for custom recordings** — currently combo steps can only reference
+  the builtin premade sounds (`app/soundBoard.js`'s `sounds` array); adding
+  custom recordings would need a unified builtin/custom source map shared
+  with `app/Custom.js`.
+- **Optional: count combo plays toward stats** — combo playback intentionally
+  skips `recordPlay` right now, so "most played"/"recently played" only
+  reflect manual taps; could opt combo steps into that same accounting later.
