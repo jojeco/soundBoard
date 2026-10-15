@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import * as SQLite from "expo-sqlite";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import styles from "../styles/Stylesheet";
 import BackgroundImage from "../assets/Background.jpg";
 import homePng from "../assets/HomeLogo.png";
@@ -20,9 +21,30 @@ import soundPrefsStyles from "../styles/soundPrefs-styles";
 import indexStyles from "../styles/index-styles";
 import useSoundPrefs from "../hooks/useSoundPrefs";
 import soundPrefsLib from "../lib/soundPrefs";
+import recordingFilesLib from "../lib/recordingFiles";
 import SoundButton from "../components/SoundButton";
 
 const { customId } = soundPrefsLib;
+const { RECORDINGS_SUBDIR, buildRecordingPath, isManagedRecording } = recordingFilesLib;
+
+// Copies a just-recorded file (expo-av writes to the app's cache folder,
+// which iOS/Android can purge under storage pressure) into the app's own
+// documents/recordings/ folder so it survives a cache purge. If the copy
+// throws for any reason, logs the error and returns the original uri so a
+// failed copy never loses the recording outright.
+async function persistRecording(uri) {
+  try {
+    await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + RECORDINGS_SUBDIR, {
+      intermediates: true,
+    });
+    const destination = buildRecordingPath(FileSystem.documentDirectory, uri, Date.now());
+    await FileSystem.copyAsync({ from: uri, to: destination });
+    return destination;
+  } catch (error) {
+    console.log("Error persisting recording:", error);
+    return uri;
+  }
+}
 
 export default function App() {
   const [db, setDb] = useState(null);
@@ -187,6 +209,8 @@ export default function App() {
   }
 
   function deleteSound(id) {
+    const target = sounds.find((sound) => sound.id === id);
+    const filePath = target ? target.filePath : null;
     db.transaction(
       (tx) => {
         tx.executeSql("delete from sounds where id = ?", [id]);
@@ -194,6 +218,11 @@ export default function App() {
       null,
       () => {
         forgetSound(customId(id)); // Drop the deleted sound's favorite/stats
+        if (filePath && isManagedRecording(FileSystem.documentDirectory, filePath)) {
+          // Never delete paths outside the app's own recordings folder.
+          // Errors here must never block refreshing the list.
+          FileSystem.deleteAsync(filePath, { idempotent: true }).catch(() => {});
+        }
         fetchSounds(); // Refresh the list after deleting
       }
     );
@@ -328,11 +357,17 @@ export default function App() {
               />
               <Pressable
                 style={[styles.button, styles.buttonClose]}
-                onPress={() => {
+                onPress={async () => {
                   if (recordUri) {
-                    saveSoundToDb(newRecordingName || "New Sound", recordUri);
-                    setModalVisible(!modalVisible);
+                    // Snapshot + clear state before the async copy so a
+                    // double-tap can't save the same recording twice.
+                    const uri = recordUri;
+                    const name = newRecordingName || "New Sound";
                     setRecordUri(null);
+                    setModalVisible(false);
+                    setNewRecordingName("");
+                    const persistedPath = await persistRecording(uri);
+                    saveSoundToDb(name, persistedPath);
                   }
                 }}
               >

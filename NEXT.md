@@ -53,3 +53,21 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
 - **Optional: count combo plays toward stats** — combo playback intentionally
   skips `recordPlay` right now, so "most played"/"recently played" only
   reflect manual taps; could opt combo steps into that same accounting later.
+- ~~**Persist custom recordings past a cache purge.**~~ **DONE** — `stopRecording()`
+  stored `recording.getURI()` straight from expo-av's cache folder, which
+  iOS/Android can clear under storage pressure, silently breaking playback
+  for DB rows that survive the purge. Added `lib/recordingFiles.js` (pure
+  path helpers: `buildRecordingPath`, `isManagedRecording`, `getExtension`)
+  and `app/Custom.js`'s `persistRecording()`, which copies the recording into
+  `documentDirectory + "recordings/"` before saving (falls back to the
+  original uri if the copy fails). `deleteSound()` now also removes the
+  backing file via `FileSystem.deleteAsync` when it's a managed recording,
+  so deleting a custom sound no longer leaves the audio file behind forever.
+  Also fixed the Save modal reusing the last recording's name as the
+  pre-filled text for the next one.
+- **Follow-up: migrate pre-fix custom-sound rows.** Any `sounds` row saved
+  before this change still has `filePath` pointing at the old cache location
+  (`isManagedRecording` returns false for those), so it's never deleted on a
+  future `deleteSound` call and won't benefit from the cache-purge fix. Could
+  lazily migrate those rows (copy-on-next-successful-play, or a one-time scan
+  on load) rather than a blocking startup migration.
