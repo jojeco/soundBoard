@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "expo-router";
 import {
   Modal,
@@ -70,6 +70,8 @@ export default function App() {
   const [recordUri, setRecordUri] = useState(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingSound, setEditingSound] = useState(null);
+  // Ref (not state) so the latest sound can always be unloaded before the next one plays.
+  const soundRef = useRef(null);
 
   useEffect(() => {
     const db = SQLite.openDatabase("soundboard.db");
@@ -95,6 +97,13 @@ export default function App() {
       fetchSounds();
     }
   }, [db]);
+
+  useEffect(() => () => {
+    if (soundRef.current) {
+      soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    }
+  }, []);
 
   // Drop favorites/stats for recorded sounds that no longer exist in the DB
   // (a reused rowid must not inherit a deleted sound's stats). Runs once per
@@ -189,9 +198,25 @@ export default function App() {
 
   async function playSound(filePath, prefId) {
     console.log("Loading Sound");
-    const { sound } = await Audio.Sound.createAsync({ uri: filePath });
-    if (prefId) recordPlay(prefId);
-    await sound.playAsync();
+    if (soundRef.current) {
+      try {
+        await soundRef.current.unloadAsync();
+      } catch (error) {
+        // May already be unloaded; ignore.
+      }
+      soundRef.current = null;
+    }
+    try {
+      const { sound } = await Audio.Sound.createAsync({ uri: filePath });
+      // A concurrent tap may have stored its sound while this one loaded; unload it so it isn't leaked.
+      if (soundRef.current) soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = sound;
+      if (prefId) recordPlay(prefId);
+      await sound.playAsync();
+    } catch (error) {
+      console.log("Error playing sound:", error);
+      Alert.alert("Can't play sound", "This recording couldn't be loaded. The file may have been removed.");
+    }
   }
 
   function showOptions(id, prefId) {

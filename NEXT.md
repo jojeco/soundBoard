@@ -71,3 +71,4 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   future `deleteSound` call and won't benefit from the cache-purge fix. Could
   lazily migrate those rows (copy-on-next-successful-play, or a one-time scan
   on load) rather than a blocking startup migration.
+- ~~**Custom-screen playback leaked `Audio.Sound` and threw on missing files.**~~ **DONE** — `app/Custom.js`'s `playSound` now unloads the previous `soundRef` before loading the next sound (matching `app/soundBoard.js`'s fix) and catches a failed load, showing an alert instead of an unhandled rejection.
