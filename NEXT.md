@@ -72,3 +72,5 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   lazily migrate those rows (copy-on-next-successful-play, or a one-time scan
   on load) rather than a blocking startup migration.
 - ~~**Custom-screen playback leaked `Audio.Sound` and threw on missing files.**~~ **DONE** — `app/Custom.js`'s `playSound` now unloads the previous `soundRef` before loading the next sound (matching `app/soundBoard.js`'s fix) and catches a failed load, showing an alert instead of an unhandled rejection.
+- ~~**`startRecording()` ignored a denied mic permission.**~~ **DONE** — it now checks the `requestPermissionsAsync()` status and alerts instead of trying to record, and catches any other recorder failure with an alert.
+- **Follow-up: guard `stopRecording()` the same way.** A throw from `stopAndUnloadAsync()` currently leaves `isRecording` stuck `true` with no alert; wrap it in try/catch and reset recording state in a `finally`.

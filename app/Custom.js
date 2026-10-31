@@ -125,19 +125,34 @@ export default function App() {
   }
 
   async function startRecording() {
-    console.log("Requesting permissions..");
-    await Audio.requestPermissionsAsync();
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-    });
-    console.log("Starting recording..");
-    const { recording } = await Audio.Recording.createAsync(
-      Audio.RecordingOptionsPresets.HIGH_QUALITY
-    );
-    setRecording(recording);
-    setIsRecording(true);
-    console.log("Recording started");
+    try {
+      console.log("Requesting permissions..");
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Microphone access needed",
+          "Allow microphone access in Settings to record sounds."
+        );
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      console.log("Starting recording..");
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(recording);
+      setIsRecording(true);
+      console.log("Recording started");
+    } catch (error) {
+      console.log("Error starting recording:", error);
+      Alert.alert(
+        "Can't start recording",
+        "Something went wrong starting the recorder. Please try again."
+      );
+    }
   }
 
   async function stopRecording() {
