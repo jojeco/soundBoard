@@ -65,12 +65,12 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   so deleting a custom sound no longer leaves the audio file behind forever.
   Also fixed the Save modal reusing the last recording's name as the
   pre-filled text for the next one.
-- **Follow-up: migrate pre-fix custom-sound rows.** Any `sounds` row saved
-  before this change still has `filePath` pointing at the old cache location
-  (`isManagedRecording` returns false for those), so it's never deleted on a
-  future `deleteSound` call and won't benefit from the cache-purge fix. Could
-  lazily migrate those rows (copy-on-next-successful-play, or a one-time scan
-  on load) rather than a blocking startup migration.
+- ~~**Follow-up: migrate pre-fix custom-sound rows.**~~ **DONE** — added
+  `planMigration` to `lib/recordingFiles.js` and a one-time
+  `migrateLegacyRecordings` sweep in `app/Custom.js` (guarded by a `useRef` so
+  it runs at most once per mount) that copies each legacy cache-path row into
+  `documents/recordings/` and repoints its DB row. Rows whose cache file was
+  already purged by the OS are left alone and can't be recovered.
 - ~~**Custom-screen playback leaked `Audio.Sound` and threw on missing files.**~~ **DONE** — `app/Custom.js`'s `playSound` now unloads the previous `soundRef` before loading the next sound (matching `app/soundBoard.js`'s fix) and catches a failed load, showing an alert instead of an unhandled rejection.
 - ~~**`startRecording()` ignored a denied mic permission.**~~ **DONE** — it now checks the `requestPermissionsAsync()` status and alerts instead of trying to record, and catches any other recorder failure with an alert.
-- **Follow-up: guard `stopRecording()` the same way.** A throw from `stopAndUnloadAsync()` currently leaves `isRecording` stuck `true` with no alert; wrap it in try/catch and reset recording state in a `finally`.
+- ~~**Follow-up: guard `stopRecording()` the same way.**~~ **DONE** — wrapped in try/catch/finally; the `finally` always resets `isRecording`/`recording`, and a thrown `stopAndUnloadAsync()` now shows an alert instead of leaving the button stuck.

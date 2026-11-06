@@ -3,7 +3,7 @@
 const assert = require("node:assert");
 const recordingFiles = require("../lib/recordingFiles");
 
-const { RECORDINGS_SUBDIR, getExtension, buildRecordingPath, isManagedRecording } =
+const { RECORDINGS_SUBDIR, getExtension, buildRecordingPath, isManagedRecording, planMigration } =
   recordingFiles;
 
 let passed = 0;
@@ -97,6 +97,79 @@ check(
 check(
   "RECORDINGS_SUBDIR is the expected literal",
   RECORDINGS_SUBDIR === "recordings/"
+);
+
+// --- planMigration -----------------------------------------------------------
+
+check(
+  "planMigration returns [] for an empty baseDir (e.g. web)",
+  planMigration("", [{ id: 1, filePath: "file:///cache/sound.caf" }], 500).length === 0
+);
+check(
+  "planMigration returns [] for non-array rows",
+  planMigration("file:///docs/", null, 500).length === 0
+);
+check(
+  "planMigration skips a row that's already managed",
+  planMigration(
+    "file:///docs/",
+    [{ id: 1, filePath: "file:///docs/recordings/rec-1.m4a" }],
+    500
+  ).length === 0
+);
+check(
+  "planMigration skips a row with an empty/null filePath",
+  planMigration("file:///docs/", [{ id: 1, filePath: null }, { id: 2, filePath: "" }], 500)
+    .length === 0
+);
+check(
+  "planMigration skips a row whose filePath contains ..",
+  planMigration(
+    "file:///docs/",
+    [{ id: 1, filePath: "file:///docs/recordings/../secret.db" }],
+    500
+  ).length === 0
+);
+
+const onePlan = planMigration(
+  "file:///docs/",
+  [{ id: 7, filePath: "file:///cache/sound.caf" }],
+  500
+);
+check("planMigration plans a cache row", onePlan.length === 1);
+check("planMigration keeps the row's id", onePlan[0].id === 7);
+check("planMigration's from is the original filePath", onePlan[0].from === "file:///cache/sound.caf");
+check(
+  "planMigration's to is under baseDir + recordings/ and keeps the source extension",
+  onePlan[0].to === "file:///docs/recordings/rec-m500-0.caf"
+);
+
+const twoPlan = planMigration(
+  "file:///docs/",
+  [
+    { id: 1, filePath: "file:///cache/a.caf" },
+    { id: 2, filePath: "file:///cache/b.caf" },
+  ],
+  500
+);
+check(
+  "planMigration gives two cache rows different `to` values",
+  twoPlan[0].to !== twoPlan[1].to
+);
+
+const mixPlan = planMigration(
+  "file:///docs/",
+  [
+    { id: 1, filePath: "file:///cache/a.caf" },
+    { id: 2, filePath: "file:///docs/recordings/rec-1.m4a" }, // already managed
+    { id: 3, filePath: "file:///cache/b.caf" },
+  ],
+  500
+);
+check("planMigration only plans the rows that need it", mixPlan.length === 2);
+check(
+  "planMigration preserves row order and indexes targets by planned position, not row index",
+  mixPlan[0].id === 1 && mixPlan[1].id === 3 && mixPlan[1].to.endsWith("-1.caf")
 );
 
 console.log(`recordingFiles.test.js: ${passed} assertions passed`);

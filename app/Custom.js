@@ -25,7 +25,7 @@ import recordingFilesLib from "../lib/recordingFiles";
 import SoundButton from "../components/SoundButton";
 
 const { customId } = soundPrefsLib;
-const { RECORDINGS_SUBDIR, buildRecordingPath, isManagedRecording } = recordingFilesLib;
+const { RECORDINGS_SUBDIR, buildRecordingPath, isManagedRecording, planMigration } = recordingFilesLib;
 
 // Copies a just-recorded file (expo-av writes to the app's cache folder,
 // which iOS/Android can purge under storage pressure) into the app's own
@@ -72,6 +72,8 @@ export default function App() {
   const [editingSound, setEditingSound] = useState(null);
   // Ref (not state) so the latest sound can always be unloaded before the next one plays.
   const soundRef = useRef(null);
+  // Ref (not state) so the migration sweep below runs at most once per mount.
+  const migratedRef = useRef(false);
 
   useEffect(() => {
     const db = SQLite.openDatabase("soundboard.db");
@@ -116,6 +118,16 @@ export default function App() {
     pruneByPrefix("custom:", sounds.map((s) => customId(s.id)));
   }, [ready, soundsLoaded, sounds, pruneByPrefix]);
 
+  // One-time sweep to migrate rows saved before the cache-purge fix out of
+  // the cache folder (see migrateLegacyRecordings below). The ref guard plus
+  // single pass per mount prevents a loop: a successful migration's
+  // fetchSounds() returns rows with managed paths, so the next plan is empty.
+  useEffect(() => {
+    if (!db || !soundsLoaded || migratedRef.current) return;
+    migratedRef.current = true;
+    migrateLegacyRecordings(sounds);
+  }, [db, soundsLoaded, sounds]);
+
   async function toggleRecording() {
     if (isRecording) {
       await stopRecording();
@@ -157,16 +169,27 @@ export default function App() {
 
   async function stopRecording() {
     console.log("Stopping recording..");
-    if (recording) {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      console.log("Recording stopped and stored at", uri);
-      setRecordUri(uri);
+    try {
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+        const uri = recording.getURI();
+        console.log("Recording stopped and stored at", uri);
+        setRecordUri(uri);
+        if (uri) setModalVisible(true);
+      } else {
+        console.log("No active recording found.");
+      }
+    } catch (error) {
+      console.log("Error stopping recording:", error);
+      Alert.alert(
+        "Can't stop recording",
+        "Something went wrong saving the recording. Please try again."
+      );
+    } finally {
+      // Resetting here even on the "no active recording" path recovers a
+      // stuck isRecording with no recording object.
       setIsRecording(false);
       setRecording(undefined);
-      setModalVisible(true);
-    } else {
-      console.log("No active recording found.");
     }
   }
 
@@ -209,6 +232,50 @@ export default function App() {
         });
       });
     }
+  }
+
+  // One-time sweep for rows saved before the cache-purge fix (persistRecording
+  // above): their filePath still points at expo-av's cache folder, which the OS
+  // can clear. Copies each into documents/recordings/ and repoints the DB row.
+  // Never throws, shows an alert, or blocks the list from rendering — a row
+  // whose cache file is already gone is simply left alone.
+  async function migrateLegacyRecordings(rows) {
+    const plan = planMigration(FileSystem.documentDirectory, rows, Date.now());
+    if (plan.length === 0) return;
+    try {
+      await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + RECORDINGS_SUBDIR, {
+        intermediates: true,
+      });
+    } catch (error) {
+      console.log("Error creating recordings dir for migration:", error);
+    }
+    let updatedAny = false;
+    for (const item of plan) {
+      try {
+        const info = await FileSystem.getInfoAsync(item.from);
+        if (!info.exists) continue; // purged cache file can't be rescued; leave the row alone
+        await FileSystem.copyAsync({ from: item.from, to: item.to });
+        await new Promise((resolve) => {
+          db.transaction(
+            (tx) => {
+              tx.executeSql("update sounds set filePath = ? where id = ?", [item.to, item.id]);
+            },
+            (error) => {
+              console.log("Error updating migrated filePath:", error);
+              FileSystem.deleteAsync(item.to, { idempotent: true }).catch(() => {});
+              resolve();
+            },
+            () => {
+              updatedAny = true;
+              resolve();
+            }
+          );
+        });
+      } catch (error) {
+        console.log("Error migrating legacy recording:", item.from, error);
+      }
+    }
+    if (updatedAny) fetchSounds();
   }
 
   async function playSound(filePath, prefId) {
