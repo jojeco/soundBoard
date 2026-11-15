@@ -100,7 +100,7 @@ export default function ComboPanel({
 
   const soundName = (soundId) => {
     const found = sounds.find((s) => s.id === soundId);
-    return found ? found.name : soundId;
+    return found ? found.name : "(missing)";
   };
 
   return (
@@ -180,16 +180,27 @@ export default function ComboPanel({
 
             <Text style={comboStyles.headerText}>Tap to add</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {sounds.map((sound) => (
-                <Pressable
-                  key={sound.id}
-                  disabled={draftSteps.length >= MAX_STEPS}
-                  style={[comboStyles.pickerChip, draftSteps.length >= MAX_STEPS ? { opacity: 0.4 } : {}]}
-                  onPress={() => handleAddSound(sound.id)}
-                >
-                  <Text style={comboStyles.chipText}>{sound.name}</Text>
-                </Pressable>
-              ))}
+              {sounds.map((sound, index) => {
+                // mergeSoundSources (lib/soundSources.js) always places
+                // builtins before customs, so the first "custom:" id is
+                // where recordings start — a cheap boundary check, no extra
+                // pass over the list.
+                const isFirstCustom =
+                  sound.id.indexOf("custom:") === 0 &&
+                  (index === 0 || sounds[index - 1].id.indexOf("custom:") !== 0);
+                return (
+                  <React.Fragment key={sound.id}>
+                    {isFirstCustom ? <Text style={comboStyles.headerText}>Recordings</Text> : null}
+                    <Pressable
+                      disabled={draftSteps.length >= MAX_STEPS}
+                      style={[comboStyles.pickerChip, draftSteps.length >= MAX_STEPS ? { opacity: 0.4 } : {}]}
+                      onPress={() => handleAddSound(sound.id)}
+                    >
+                      <Text style={comboStyles.chipText}>{sound.name}</Text>
+                    </Pressable>
+                  </React.Fragment>
+                );
+              })}
             </ScrollView>
 
             <View style={comboStyles.headerRow}>

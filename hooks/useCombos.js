@@ -10,6 +10,7 @@ const {
   createCombo: libCreateCombo,
   updateCombo: libUpdateCombo,
   deleteCombo: libDeleteCombo,
+  pruneStepsByPrefix: libPruneStepsByPrefix,
 } = combosLib;
 
 // One module-level store, shared by every mounted screen that uses combos.
@@ -49,11 +50,19 @@ export default function useCombos() {
     store.update((current) => libDeleteCombo(current, id));
   }, []);
 
+  // Drops combo steps under `prefix` whose soundId isn't in `knownIds` (e.g.
+  // after a custom-recording fetch/delete) — see lib/combos.js header on
+  // pruneStepsByPrefix for why a reused SQLite rowid needs this.
+  const pruneSteps = useCallback((prefix, knownIds) => {
+    store.update((current) => libPruneStepsByPrefix(current, prefix, knownIds));
+  }, []);
+
   return {
     ready,
     combos: combosState.combos,
     createCombo,
     updateCombo,
     deleteCombo,
+    pruneSteps,
   };
 }

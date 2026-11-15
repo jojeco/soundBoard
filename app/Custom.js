@@ -20,12 +20,18 @@ import soundBoardStyles from "../styles/soundBoard-styles";
 import soundPrefsStyles from "../styles/soundPrefs-styles";
 import indexStyles from "../styles/index-styles";
 import useSoundPrefs from "../hooks/useSoundPrefs";
+import useCombos from "../hooks/useCombos";
+import useComboPlayer from "../hooks/useComboPlayer";
 import soundPrefsLib from "../lib/soundPrefs";
 import recordingFilesLib from "../lib/recordingFiles";
 import SoundButton from "../components/SoundButton";
+import ComboPanel from "../components/ComboPanel";
+import BUILTIN_SOUNDS from "../lib/builtinSounds";
+import soundSourcesLib from "../lib/soundSources";
 
 const { customId } = soundPrefsLib;
 const { RECORDINGS_SUBDIR, buildRecordingPath, isManagedRecording, planMigration } = recordingFilesLib;
+const { customSoundEntries, mergeSoundSources } = soundSourcesLib;
 
 // Copies a just-recorded file (expo-av writes to the app's cache folder,
 // which iOS/Android can purge under storage pressure) into the app's own
@@ -63,6 +69,12 @@ export default function App() {
     pruneByPrefix,
     hasRecents,
   } = useSoundPrefs();
+  const { ready: combosReady, combos, createCombo, updateCombo, deleteCombo, pruneSteps } = useCombos();
+  // Builtins + this screen's own custom recordings, merged for the combo
+  // editor's sound picker and combo playback — see NEXT.md, "Combos for
+  // custom recordings".
+  const comboSounds = mergeSoundSources(BUILTIN_SOUNDS, customSoundEntries(sounds));
+  const { playingComboId, playCombo, stopCombo } = useComboPlayer(comboSounds);
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState();
   const [modalVisible, setModalVisible] = useState(false);
@@ -117,6 +129,19 @@ export default function App() {
     if (!ready || !soundsLoaded) return;
     pruneByPrefix("custom:", sounds.map((s) => customId(s.id)));
   }, [ready, soundsLoaded, sounds, pruneByPrefix]);
+
+  // Drop combo steps referencing recorded sounds that no longer exist in the
+  // DB — same reused-rowid risk as the pruneByPrefix effect above, but for
+  // combo steps instead of favorites/stats. Must run after every fetch
+  // (including right after a delete), so a reused SQLite rowid can never
+  // inherit stale combo steps. `combos` is in the deps so a combo edited on
+  // the other screen with a now-stale custom: step still gets pruned here;
+  // pruneSteps keeps the same reference when nothing is dropped, so this
+  // can't loop.
+  useEffect(() => {
+    if (!combosReady || !soundsLoaded) return;
+    pruneSteps("custom:", sounds.map((s) => customId(s.id)));
+  }, [combosReady, soundsLoaded, sounds, pruneSteps, combos]);
 
   // One-time sweep to migrate rows saved before the cache-purge fix out of
   // the cache folder (see migrateLegacyRecordings below). The ref guard plus
@@ -301,6 +326,20 @@ export default function App() {
     }
   }
 
+  // Stops any playing combo, then unloads the currently-playing recording
+  // (if any), same unload pattern playSound above already uses.
+  async function stopAll() {
+    await stopCombo();
+    if (soundRef.current) {
+      try {
+        await soundRef.current.unloadAsync();
+      } catch (error) {
+        // May already be unloaded; ignore.
+      }
+      soundRef.current = null;
+    }
+  }
+
   function showOptions(id, prefId) {
     const favoriteLabel = isFavorite(prefId) ? "Unfavorite" : "Favorite";
     Alert.alert("Sound Options", "Choose an option", [
@@ -399,6 +438,24 @@ export default function App() {
             {isRecording ? "Stop Recording" : "Start Recording"}
           </Text>
         </Pressable>
+        {combosReady ? (
+          <ComboPanel
+            combos={combos}
+            sounds={comboSounds}
+            playingComboId={playingComboId}
+            onPlay={async (combo) => {
+              // Starting a combo also stops any manually-tapped single
+              // recording still playing (soundRef), matching the
+              // soundBoard.js screen's onPlay wiring.
+              await stopAll();
+              await playCombo(combo);
+            }}
+            onStop={stopAll}
+            onCreate={createCombo}
+            onUpdate={updateCombo}
+            onDelete={deleteCombo}
+          />
+        ) : null}
         {ready && recent.length > 0 ? (
           <View style={soundPrefsStyles.recentSection}>
             <Text style={soundPrefsStyles.recentTitle}>Recently played</Text>

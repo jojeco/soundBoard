@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import { Alert, Pressable, Text, View, ImageBackground, ScrollView } from "react-native";
 import { Link } from "expo-router";
 import { Audio } from "expo-av";
@@ -8,14 +8,17 @@ import soundPrefsStyles from "../styles/soundPrefs-styles";
 import soundPrefsLib from "../lib/soundPrefs";
 import useSoundPrefs from "../hooks/useSoundPrefs";
 import useCombos from "../hooks/useCombos";
+import useComboPlayer from "../hooks/useComboPlayer";
+import useCustomSoundRows from "../hooks/useCustomSoundRows";
 import SoundButton from "../components/SoundButton";
 import ComboPanel from "../components/ComboPanel";
-import comboLib from "../lib/combos";
+import BUILTIN_SOUNDS from "../lib/builtinSounds";
+import soundSourcesLib from "../lib/soundSources";
 import BackgroundImage from "../assets/Background.jpg";
 import homePng from "../assets/HomeLogo.png";
 
-const { builtinId, SORT_MODES } = soundPrefsLib;
-const { resolveSteps, buildSchedule, createComboRunner } = comboLib;
+const { SORT_MODES } = soundPrefsLib;
+const { customSoundEntries, mergeSoundSources } = soundSourcesLib;
 
 const SORT_LABELS = {
   default: "Default",
@@ -31,25 +34,15 @@ export default function App() {
   const { ready, sortMode, setSortMode, toggleFavorite, recordPlay, isFavorite, getPlayCount, sort, recentlyPlayed, clearRecents, hasRecents } =
     useSoundPrefs();
 
-  // Combo playback state: the active runner, every Audio.Sound a combo has
-  // spawned (so stopAll can unload them even mid-sequence), and which combo
-  // (if any) is currently playing.
-  const runnerRef = useRef(null);
-  const comboSoundsRef = useRef([]);
-  const [playingComboId, setPlayingComboId] = useState(null);
   const { ready: combosReady, combos, createCombo, updateCombo, deleteCombo } = useCombos();
 
-  const sounds = [
-    { id: builtinId("Rizz"), name: "Rizz", source: require("../Sounds/rizz-sounds.mp3") },
-    { id: builtinId("Record"), name: "Record", source: require("../Sounds/record-scratch-2.mp3") },
-    { id: builtinId("Pew"), name: "Pew", source: require("../Sounds/pew_pew.mp3") },
-    { id: builtinId("Vine"), name: "Vine", source: require("../Sounds/vine-boom.mp3") },
-    { id: builtinId("ack"), name: "ack", source: require("../Sounds/ack.mp3") },
-    { id: builtinId("Galaxy"), name: "Galaxy", source: require("../Sounds/galaxy-meme.mp3") },
-    { id: builtinId("Fail"), name: "Fail", source: require("../Sounds/spongebob-fail.mp3") },
-    { id: builtinId("Death Noise"), name: "Death Noise", source: require("../Sounds/Fortnite-Death-Noise.mp3") },
-    { id: builtinId("Downer"), name: "Downer", source: require("../Sounds/downer_noise.mp3") },
-  ];
+  // Custom recordings merged in after the builtins so combos (on either
+  // screen) can reference them too. The grid/sort/favorites/recently-played
+  // strip below intentionally keep using BUILTIN_SOUNDS only — this merged
+  // list is only handed to the combo player/panel.
+  const customRows = useCustomSoundRows();
+  const sounds = mergeSoundSources(BUILTIN_SOUNDS, customSoundEntries(customRows));
+  const { playingComboId, playCombo, stopCombo } = useComboPlayer(sounds);
 
   // Plays the sound. Fixes the previous leak by unloading any
   // already-held sound before loading the new one.
@@ -64,80 +57,13 @@ export default function App() {
     await newSound.playAsync();
   };
 
-  // Plays a saved (or draft-preview) combo: builds the step schedule from
-  // the live `sounds` list, wires a runner that layers each step's own
-  // Audio.Sound instance (so overlapping steps don't cut each other off),
-  // and tracks the playing id so the Premade screen/ComboPanel can show it.
-  // NOTE: combo playback does NOT call recordPlay for any step — play
-  // counts/recents stay a measure of manual single-sound taps, not combo
-  // playback.
-  const playCombo = async (combo) => {
-    await stopAll();
-    const schedule = buildSchedule(resolveSteps(combo, sounds));
-    // `play` is NOT awaited by the runner (createComboRunner fires it from a
-    // timer callback), so every path must settle without throwing — an
-    // unhandled rejection here would surface as an RN warning. It also races
-    // the player getting stopped/replaced while Audio.Sound.createAsync is
-    // still loading: if `runnerRef.current` no longer points at THIS runner
-    // by the time the load resolves (Stop was tapped, the screen unmounted,
-    // or another combo started), drop the sound instead of playing it late.
-    const play = async (sound) => {
-      try {
-        const { sound: newSound } = await Audio.Sound.createAsync(sound.source);
-        if (runnerRef.current !== runner) {
-          newSound.unloadAsync().catch(() => {});
-          return;
-        }
-        comboSoundsRef.current = comboSoundsRef.current.concat([newSound]);
-        newSound.setOnPlaybackStatusUpdate((status) => {
-          if (status.didJustFinish) {
-            newSound.unloadAsync().catch(() => {});
-            comboSoundsRef.current = comboSoundsRef.current.filter((s) => s !== newSound);
-          }
-        });
-        await newSound.playAsync();
-      } catch (e) {
-        // Load/play failed (or was unloaded out from under us) — nothing to
-        // clean up, just don't let the rejection go unhandled.
-      }
-    };
-    const runner = createComboRunner({
-      schedule,
-      play,
-      setTimer: setTimeout,
-      clearTimer: clearTimeout,
-      onDone: () => setPlayingComboId(null),
-    });
-    // Guards against two playCombo() calls racing past the `await stopAll()`
-    // above (e.g. rapid combo switching): whichever runner loses this
-    // assignment is still cancelled, not left to keep firing underneath.
-    if (runnerRef.current) runnerRef.current.cancel();
-    runnerRef.current = runner;
-    setPlayingComboId(combo.id);
-    runner.start();
-  };
-
-  // Stops any playing combo (cancelling its runner + unloading every sound
-  // it spawned) and then runs the existing single-sound stop logic.
+  // Stops any playing combo, then runs the existing single-sound stop logic.
   const stopAll = async () => {
-    if (runnerRef.current) {
-      runnerRef.current.cancel();
-      runnerRef.current = null;
-    }
-    const comboSounds = comboSoundsRef.current;
-    comboSoundsRef.current = [];
-    for (let i = 0; i < comboSounds.length; i++) {
-      try {
-        await comboSounds[i].unloadAsync();
-      } catch (e) {
-        // already unloaded/unloading — fine to ignore.
-      }
-    }
+    await stopCombo();
     if (soundRef.current) {
       await soundRef.current.unloadAsync();
       soundRef.current = null;
     }
-    setPlayingComboId(null);
   };
 
   // Unmount cleanup: cancels any running combo and its timers so nothing
@@ -159,8 +85,8 @@ export default function App() {
     );
   };
 
-  const orderedSounds = ready ? sort(sounds) : sounds;
-  const recent = ready ? recentlyPlayed(sounds, 5) : [];
+  const orderedSounds = ready ? sort(BUILTIN_SOUNDS) : BUILTIN_SOUNDS;
+  const recent = ready ? recentlyPlayed(BUILTIN_SOUNDS, 5) : [];
 
   return (
     <ImageBackground source={BackgroundImage} style={indexStyles.background}>
@@ -229,7 +155,13 @@ export default function App() {
             combos={combos}
             sounds={sounds}
             playingComboId={playingComboId}
-            onPlay={playCombo}
+            onPlay={async (combo) => {
+              // Starting a combo also stops any manually-tapped single sound
+              // still playing (soundRef), matching the pre-refactor behavior
+              // where playCombo began with `await stopAll()`.
+              await stopAll();
+              await playCombo(combo);
+            }}
             onStop={stopAll}
             onCreate={createCombo}
             onUpdate={updateCombo}

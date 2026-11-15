@@ -46,13 +46,43 @@ layer added in this pass (`lib/soundPrefs.js`, `lib/prefsStorage.js`,
   existing prefs blob — every mutator in `lib/soundPrefs.js` rebuilds that
   object as exactly `{version, favorites, stats}`, so any extra field would
   get silently wiped on the next favorite toggle or play.
-- **Combos for custom recordings** — currently combo steps can only reference
-  the builtin premade sounds (`app/soundBoard.js`'s `sounds` array); adding
-  custom recordings would need a unified builtin/custom source map shared
-  with `app/Custom.js`.
+- ~~**Combos for custom recordings**~~ **DONE** — added `lib/builtinSounds.js`
+  (the 9 premade sounds, moved out of `app/soundBoard.js` unchanged) and
+  `lib/soundSources.js` (`customSoundEntries`/`mergeSoundSources`, pure,
+  same convention as `lib/combos.js`). Combo steps on BOTH screens can now
+  reference custom recordings: `app/soundBoard.js` reads them via the new
+  `hooks/useCustomSoundRows.js` (read-only, real screen-focus refresh via
+  `expo-router`'s own `useFocusEffect` — confirmed exported in this repo's
+  installed 3.4.6, no new dependency needed), and `app/Custom.js` reuses its
+  own existing `sounds` state. The combo-playback logic itself moved out of
+  `app/soundBoard.js` into `hooks/useComboPlayer.js` so both screens share it
+  unchanged (same race guards, same "no recordPlay for combo steps"
+  behavior). A new `pruneStepsByPrefix` in `lib/combos.js` (wired through
+  `hooks/useCombos.js#pruneSteps`, called from `app/Custom.js` after every
+  custom-sound fetch) stops a reused SQLite rowid from letting an old combo
+  step silently inherit a brand-new recording — same fix class as the
+  existing `pruneByPrefix` for favorites/stats above. `components/ComboPanel.js`
+  now shows "(missing)" instead of a raw id for an unresolvable step.
 - **Optional: count combo plays toward stats** — combo playback intentionally
   skips `recordPlay` right now, so "most played"/"recently played" only
   reflect manual taps; could opt combo steps into that same accounting later.
+- **`hooks/useCustomSoundRows.js` opens its own `SQLite.openDatabase("soundboard.db")`
+  connection separate from `app/Custom.js`'s**, purely to read combo-relevant
+  rows on the Premade screen. Likely safe today (unverified — didn't confirm
+  expo-sqlite's connection-caching behavior), but if the two screens' queries
+  ever diverge (e.g. a future schema migration only run from `app/Custom.js`),
+  the Premade screen's copy could go stale until its next focus — worth a
+  shared read helper if that happens.
+- **`components/ComboPanel.js`'s "Recordings" label** in the sound picker
+  assumes `mergeSoundSources` always keeps builtins before customs (true
+  today — it's literally what the function does) — if a future change ever
+  reorders or interleaves the merged list, the label's index-boundary check
+  would need to move with it.
+- **No test exercises a combo step's sound file actually going missing
+  mid-playback** (vs. missing at build/prune time) — `useComboPlayer`'s
+  `play()` already catches a failed `Audio.Sound.createAsync` per-step, but
+  that path is only covered by code review, not a unit test, since it needs
+  a real/mocked `expo-av`.
 - ~~**Persist custom recordings past a cache purge.**~~ **DONE** — `stopRecording()`
   stored `recording.getURI()` straight from expo-av's cache folder, which
   iOS/Android can clear under storage pressure, silently breaking playback

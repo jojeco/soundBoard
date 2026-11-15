@@ -24,6 +24,7 @@ const {
   createCombo,
   updateCombo,
   deleteCombo,
+  pruneStepsByPrefix,
   addStep,
   removeStep,
   moveStep,
@@ -172,6 +173,86 @@ check("sanitizeName cuts to MAX_NAME_LENGTH", sanitizeName("x".repeat(100)).leng
   check("deleteCombo removes the combo", deleted.combos.length === 0);
   check("deleteCombo on unknown id returns the same reference", deleteCombo(seeded, "nope") === seeded);
   check("deleteCombo does not mutate its input", JSON.stringify(seeded) === beforeDelete);
+})();
+
+// pruneStepsByPrefix: drops steps under `prefix` not present in `knownIds`,
+// used by hooks/useCombos.js's pruneSteps to stop a reused SQLite rowid from
+// inheriting a deleted custom recording's combo steps.
+(function () {
+  const state = {
+    version: COMBOS_VERSION,
+    combos: [
+      {
+        id: "c1",
+        name: "Mix",
+        steps: [
+          { soundId: "builtin:vine", delayMs: 0 },
+          { soundId: "custom:1", delayMs: 100 },
+          { soundId: "custom:2", delayMs: 200 },
+          { soundId: "other:1", delayMs: 300 },
+        ],
+        createdAt: 0,
+      },
+      {
+        id: "c2",
+        name: "AllGone",
+        steps: [{ soundId: "custom:9", delayMs: 0 }],
+        createdAt: 0,
+      },
+    ],
+  };
+
+  const pruned = pruneStepsByPrefix(state, "custom:", ["custom:1"]);
+  check(
+    "pruneStepsByPrefix drops a custom: step not in knownIds",
+    pruned.combos[0].steps.map((s) => s.soundId).indexOf("custom:2") === -1
+  );
+  check(
+    "pruneStepsByPrefix keeps a custom: step that IS in knownIds",
+    pruned.combos[0].steps.map((s) => s.soundId).indexOf("custom:1") !== -1
+  );
+  check(
+    "pruneStepsByPrefix always keeps builtin: steps (unrelated prefix)",
+    pruned.combos[0].steps.map((s) => s.soundId).indexOf("builtin:vine") !== -1
+  );
+  check(
+    "pruneStepsByPrefix always keeps other-prefixed steps (unrelated prefix)",
+    pruned.combos[0].steps.map((s) => s.soundId).indexOf("other:1") !== -1
+  );
+  check(
+    "pruneStepsByPrefix leaves a combo with zero remaining steps in place (not deleted)",
+    pruned.combos.length === 2 && pruned.combos[1].steps.length === 0
+  );
+
+  check(
+    "pruneStepsByPrefix returns the SAME reference when nothing is dropped",
+    pruneStepsByPrefix(state, "custom:", ["custom:1", "custom:2", "custom:9"]) === state
+  );
+  check(
+    "pruneStepsByPrefix accepts knownIds as a Set, with the same result as an array",
+    deepEqual(
+      pruneStepsByPrefix(state, "custom:", new Set(["custom:1"])),
+      pruneStepsByPrefix(state, "custom:", ["custom:1"])
+    )
+  );
+  check(
+    "pruneStepsByPrefix with an empty prefix is a no-op (same reference)",
+    pruneStepsByPrefix(state, "", ["custom:1"]) === state
+  );
+  check(
+    "pruneStepsByPrefix with a non-string prefix is a no-op (same reference)",
+    pruneStepsByPrefix(state, null, ["custom:1"]) === state
+  );
+  check("pruneStepsByPrefix never throws on garbage state", (() => {
+    try {
+      pruneStepsByPrefix(undefined, "custom:", ["custom:1"]);
+      pruneStepsByPrefix("not an object", "custom:", ["custom:1"]);
+      pruneStepsByPrefix(null, "custom:", null);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  })());
 })();
 
 check("makeComboId is deterministic for the same now", makeComboId(12345, []) === makeComboId(12345, []));
