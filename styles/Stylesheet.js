@@ -112,10 +112,17 @@ export default StyleSheet.create({
   buttonClose: {
     backgroundColor: "rgba(16,145,49,1)",
   },
+  buttonSecondary: {
+    backgroundColor: "#888",
+  },
   textStyle: {
     color: "white",
     fontWeight: "bold",
     textAlign: "center",
+  },
+  errorText: {
+    color: "#c0392b",
+    marginBottom: 10,
   },
   backgroundImage: {
     flex: 1,

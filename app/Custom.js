@@ -28,10 +28,12 @@ import SoundButton from "../components/SoundButton";
 import ComboPanel from "../components/ComboPanel";
 import BUILTIN_SOUNDS from "../lib/builtinSounds";
 import soundSourcesLib from "../lib/soundSources";
+import soundNamesLib from "../lib/soundNames";
 
 const { customId } = soundPrefsLib;
 const { RECORDINGS_SUBDIR, buildRecordingPath, isManagedRecording, planMigration } = recordingFilesLib;
 const { customSoundEntries, mergeSoundSources } = soundSourcesLib;
+const { MAX_SOUND_NAME_LENGTH, validateNewSoundName, validateRename } = soundNamesLib;
 
 // Copies a just-recorded file (expo-av writes to the app's cache folder,
 // which iOS/Android can purge under storage pressure) into the app's own
@@ -82,6 +84,7 @@ export default function App() {
   const [recordUri, setRecordUri] = useState(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingSound, setEditingSound] = useState(null);
+  const [renameError, setRenameError] = useState("");
   // Ref (not state) so the latest sound can always be unloaded before the next one plays.
   const soundRef = useRef(null);
   // Ref (not state) so the migration sweep below runs at most once per mount.
@@ -379,27 +382,60 @@ export default function App() {
     if (sound) {
       setEditingSound(sound);
       setNewRecordingName(sound.name);
+      setRenameError("");
       setEditModalVisible(true);
     }
   }
 
   function updateSoundName() {
-    if (editingSound && newRecordingName.trim()) {
-      db.transaction(
-        (tx) => {
-          tx.executeSql("update sounds set name = ? where id = ?", [
-            newRecordingName,
-            editingSound.id,
-          ]);
-        },
-        null,
-        () => {
-          fetchSounds(); // Refresh the list after updating
-          setEditModalVisible(false);
-          setEditingSound(null);
-          setNewRecordingName("");
-        }
-      );
+    if (!editingSound) return;
+    const existingNames = sounds.map((s) => s.name);
+    const result = validateRename(newRecordingName, existingNames, editingSound.name);
+    if (!result.ok) {
+      setRenameError(result.error);
+      return;
+    }
+    db.transaction(
+      (tx) => {
+        tx.executeSql("update sounds set name = ? where id = ?", [
+          result.name,
+          editingSound.id,
+        ]);
+      },
+      null,
+      () => {
+        fetchSounds(); // Refresh the list after updating
+        setEditModalVisible(false);
+        setEditingSound(null);
+        setNewRecordingName("");
+        setRenameError("");
+      }
+    );
+  }
+
+  // Closes the Rename popup without writing anything. Routed through both
+  // the Cancel button and the popup's onRequestClose (Android back) so
+  // neither path can leave editingSound/newRecordingName stale for the next
+  // Save or Rename popup.
+  function cancelRename() {
+    setEditModalVisible(false);
+    setEditingSound(null);
+    setNewRecordingName("");
+    setRenameError("");
+  }
+
+  // Closes the Save popup without saving. Routed through both the Discard
+  // button and the popup's onRequestClose (Android back) so neither path
+  // leaves a stale recordUri in state. Only deletes the cache file when it's
+  // not already a managed recording (isManagedRecording), so this can never
+  // delete a sound that's already been saved.
+  function discardRecording() {
+    const uri = recordUri;
+    setRecordUri(null);
+    setNewRecordingName("");
+    setModalVisible(false);
+    if (uri && !isManagedRecording(FileSystem.documentDirectory, uri)) {
+      FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
     }
   }
 
@@ -507,9 +543,7 @@ export default function App() {
           animationType="slide"
           transparent={true}
           visible={modalVisible}
-          onRequestClose={() => {
-            setModalVisible(!modalVisible);
-          }}
+          onRequestClose={discardRecording}
         >
           <View style={styles.centeredView}>
             <View style={styles.modalView}>
@@ -518,6 +552,7 @@ export default function App() {
                 placeholder="Name your sound:"
                 value={newRecordingName}
                 onChangeText={setNewRecordingName}
+                maxLength={MAX_SOUND_NAME_LENGTH}
               />
               <Pressable
                 style={[styles.button, styles.buttonClose]}
@@ -526,7 +561,8 @@ export default function App() {
                     // Snapshot + clear state before the async copy so a
                     // double-tap can't save the same recording twice.
                     const uri = recordUri;
-                    const name = newRecordingName || "New Sound";
+                    const existingNames = sounds.map((s) => s.name);
+                    const name = validateNewSoundName(newRecordingName, existingNames).name;
                     setRecordUri(null);
                     setModalVisible(false);
                     setNewRecordingName("");
@@ -537,6 +573,12 @@ export default function App() {
               >
                 <Text style={styles.textStyle}>Save</Text>
               </Pressable>
+              <Pressable
+                style={[styles.button, styles.buttonSecondary]}
+                onPress={discardRecording}
+              >
+                <Text style={styles.textStyle}>Discard</Text>
+              </Pressable>
             </View>
           </View>
         </Modal>
@@ -544,9 +586,7 @@ export default function App() {
           animationType="slide"
           transparent={true}
           visible={editModalVisible}
-          onRequestClose={() => {
-            setEditModalVisible(!editModalVisible);
-          }}
+          onRequestClose={cancelRename}
         >
           <View style={styles.centeredView}>
             <View style={styles.modalView}>
@@ -554,13 +594,24 @@ export default function App() {
                 style={styles.modalTextInput}
                 placeholder="Rename your sound:"
                 value={newRecordingName}
-                onChangeText={setNewRecordingName}
+                onChangeText={(text) => {
+                  setNewRecordingName(text);
+                  setRenameError("");
+                }}
+                maxLength={MAX_SOUND_NAME_LENGTH}
               />
+              {renameError ? <Text style={styles.errorText}>{renameError}</Text> : null}
               <Pressable
                 style={[styles.button, styles.buttonClose]}
                 onPress={updateSoundName}
               >
                 <Text style={styles.textStyle}>Update</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.button, styles.buttonSecondary]}
+                onPress={cancelRename}
+              >
+                <Text style={styles.textStyle}>Cancel</Text>
               </Pressable>
             </View>
           </View>
